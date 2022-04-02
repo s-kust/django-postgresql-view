@@ -1,0 +1,5 @@
+.vscode/
+app/.venv/
+pgadmin-data/
+data/
+*.log
