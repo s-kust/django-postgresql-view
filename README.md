@@ -1,7 +1,9 @@
 # Django PostgreSQL Materialized View Example
-This project aims to demonstrate the usage of the PostgreSQL materialized view in Django to speed up a complex query. Here you will find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
+This project aims to demonstrate the usage of the PostgreSQL materialized view in Django to speed up a complex data reporting query. Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
 
-It makes sense to apply PostgreSQL materialized view if read requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
+The PostgreSQL materialized view in the database contains the cached results of the SELECT queries execution. The optimization is to fetch the cached data from the view, instead of re-executing queries.
+
+It makes sense to apply this method if read requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
 
 ## Task
 We have to provide the system users with JSON data about some object. Also, the data should contain all other entities associated with that object. We are dealing with a complex, bloated database schema. It includes many redundant models, and we are not allowed to get rid of them. Therefore, read requests are complex and resource-intensive. It often happens on legacy projects. 
@@ -297,3 +299,57 @@ Notes to the SQL query text:
 1. Unless you have a good reason to use the regular JSON, use the binary JSON. In other words, use the `jsonb_build_object` function instead of the `json_build_object` function. Otherwise, the `TypeError: JSON object must be str, bytes or bytearray, not dict` may occur, and you will have to tinker to get rid of it.
 
 The SQL code `REFRESH MATERIALIZED VIEW CONCURRENTLY rooms_related_objects;` is automatically executed whenever data in the database changes. The Django signals `post_save` and `m2m_changed` are used for that. See the file `app/rooms/signals.py` for details. Also, in the file `app/rooms/apps.py` see how the system receives indications that signals need to be processed.
+
+You can explore the `rooms_related_objects` materialized view directly in the database using the `pgadmin` utility. The SQL code listed above is automatically executed during the initial database migration. See the file `app/rooms/migrations/0004_roomsrelatedobjects.py` for details.
+
+## Creating a Django Model from the PostgreSQL Materialized View
+
+Our goal is to acquire the cached data from the PostgreSQL materialized view instead of re-executing heavy SQL queries. To accomplish that, we create one more Django model. It will work with the materialized view as with a regular database table, except for minor details.
+
+To create models based on existing database tables, Django has a utility `inspectdb`. By default, it does not work with views. It needs to get the name of the view as a parameter. Save the results of its work by redirecting them to some file.
+
+You will probably need to make small changes manually in the resulting model. In particular, indicate that the `id` field is the primary key. In the end, you get something like the following model.
+
+```python
+class RoomsRelatedObjects(models.Model):
+    id = models.BigIntegerField(primary_key=True)
+    door = models.JSONField(blank=True, null=True)
+    decoration = models.JSONField(blank=True, null=True)
+    windows = models.JSONField(blank=True, null=True)
+    name = models.CharField(max_length=30, blank=True, null=True)
+    width = models.FloatField(blank=True, null=True)
+    length = models.FloatField(blank=True, null=True)
+    height = models.FloatField(blank=True, null=True)
+    type = models.CharField(max_length=5, blank=True, null=True)
+    beds = models.JSONField(blank=True, null=True)
+    chairs = models.JSONField(blank=True, null=True)
+    tables = models.JSONField(blank=True, null=True)
+
+    class Meta:
+        managed = False  # Created from a view. Don't remove.
+        db_table = 'rooms_related_objects'
+```
+
+The property `managed = False` is essential in this case. It instructs Django not to try to create a table in the database.
+
+You can create the PostgreSQL materialized view directly in the database by executing the SQL code using the `pgadmin` utility. It is probably the best way. Or add the SQL code to the migration file. It will instruct Django to create the materialized view during the execution of the `migrate` command. You can find an example of that in the `app/rooms/migrations/0004_roomsrelatedobjects.py` file.
+
+To use the newly created model, we have to build its serializer and view. Also, register the view in the `urls.py` file. See the code of the classes `RoomsRelatedObjectsSerializer` and `RoomsRelatedObjectsViewSet`. There is nothing special about them. Note that the `RoomsRelatedObjectsViewSet` class is a `ReadOnlyModelViewSet` class inheritor, and not a `ModelViewSet` inheritor.
+
+## Testing the Effect
+You can get the rooms' data using the PostgreSQL materialized view at the address `localhost:8000/rooms2/`. You can see the complete data about all rooms at once. Also, request data about individual rooms using their IDs. Make sure the data matches the one at the address `localhost:8000/rooms/`. 
+
+The `rooms` app has a middleware that logs all requests. See its code in the file `app/rooms/middleware/log_execution_time.py`. These logs contain the paths as well as the execution time. They are in a file `logs_all_here.log`.
+
+The `supplementary_scripts` folder contains the file `make_requests_to_log_time.py`. This script works as follows:
+1. It connects to the database and gets a list of all the rooms IDs.
+1. On each iteration of the loop, using that list, it makes a pair of requests to random rooms in the usual way and through the PostgreSQL materialized view. The logs of these requests are stored in a file.
+1. You can change the number of request pairs by modifying the `requests_count` variable. Its default value is 20.
+
+Run the `make_requests_to_log_time.py` script. Then find the `logs_all_here.log` file and copy it to the folder. It is advisable to remove lines from the log file that are not relevant. 
+
+After that, run the second script `process_logs.py`. Pass the name of the log file as a parameter. This script splits the entries in the log file into two groups and calculates the average execution time for each of them. As an output, you will hopefully get something like the following.
+
+![log processing output](/misc/log_processing_output.png)
+
+When using the view, the average query execution time decreases significantly. In real-world conditions, the difference is even more substantial.
