@@ -1,9 +1,17 @@
 # Django PostgreSQL Materialized View Example
-This project aims to demonstrate the usage of the PostgreSQL materialized view in Django to speed up a complex data reporting query. Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
+This project aims to demonstrate the usage of the PostgreSQL materialized view in Django to speed up a complex SELECT query with many JOIN operations. Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
 
-The PostgreSQL materialized view in the database contains the cached result of the complex SELECT query execution. The optimization is to fetch the cached data from the view instead of re-executing queries.
+The PostgreSQL materialized view in the database contains the cached result of some intricate SELECT query execution. The optimization is to return the cached data from the view instead of re-executing queries. While trying to speed up the users' requests execution, it is also important to prevent users from getting stale cached data.
 
 It makes sense to apply this method if SELECT requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
+
+In this repository, you can find working examples of the following:
+1. PostgreSQL materialized view in Django.
+1. `EagerLoadingMixin` in Django REST framework serializer classes to solve the N+1 queries problem.
+1. Usage of the most generic `viewsets.ModelViewSet` to build views in Django REST framework fast and easy. 
+1. Advanced PostgreSQL SQL Query with several Common Table Expressions and JSON functions.
+1. Django `post_save` and `m2m_changed` signals.
+1. Populating the Django database with fake generated data for testing. See the `app/initial_db_fill.py` file. 
 
 ## Task
 We have to provide the users with JSON data about some object. Also, the data should contain all other entities associated with that object. We are dealing with a complex, bloated database schema. It includes many redundant models, and we are not allowed to get rid of them. Therefore, read requests are complex and resource-intensive. It often happens on legacy projects. 
