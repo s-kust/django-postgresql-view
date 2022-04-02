@@ -1,0 +1,5 @@
+django
+model-bakery
+psycopg2-binary
+djangorestframework
+requests
