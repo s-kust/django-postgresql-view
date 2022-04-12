@@ -3,11 +3,13 @@ import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'app.settings')
 import django
 django.setup()
-from rooms.models import Door, Souvenir, Decoration, Room, Window, WindowFittings, Chair, Bed, Table
+from rooms.models import Door, Souvenir, Decoration, Room, Window, WindowFittings, Chair, Bed, Table, RoomWithRelatedObjsRebuildInApp
+from rooms.signals import create_room_with_related_objs
 from model_bakery import baker
 
 
 if __name__ == '__main__':
+    RoomWithRelatedObjsRebuildInApp.objects.all().delete()
     Room.objects.all().delete()
     Door.objects.all().delete()
     Souvenir.objects.all().delete()
@@ -19,38 +21,46 @@ if __name__ == '__main__':
     Table.objects.all().delete()
     print("Initial data deletion - OK")
     _ = baker.make(Souvenir, _quantity=150)    
-    _ = baker.make(Door, _quantity=50)
+    _ = baker.make(Door, _quantity=250)
     souvenirs_all = list(Souvenir.objects.all())
     doors_all = list(Door.objects.all())
     print("Created souvenirs and doors - OK")
     items_quantity = 500
+    _ = baker.make(Chair, _quantity=items_quantity)
+    _ = baker.make(Bed, _quantity=items_quantity)
+    _ = baker.make(Table, _quantity=items_quantity)
+    _ = baker.make(WindowFittings, _quantity=items_quantity)
+    chairs_all = list(Chair.objects.all())
+    beds_all = list(Bed.objects.all())
+    tables_all = list(Table.objects.all())
+    win_fittings_all = list(WindowFittings.objects.all())
+    print("Created initial chairs, beds, tables, windows fittings")
     for i in range(items_quantity):
         door_prepared = random.choice(doors_all)
         souvenirs_sample = random.sample(souvenirs_all, 5)
         decoration_prepared = baker.make(Decoration, souvenirs=souvenirs_sample)
         room = baker.make(
             Room, decoration=decoration_prepared, door=door_prepared)
-        _ = baker.make(Window, room=room)
-        _ = baker.make(Window, room=room)
+        _ = baker.make(Window, _quantity=2, room=room)
         print("Created room and windows ", i+1, " of ", items_quantity, " - OK")
 
     rooms = list(Room.objects.all())
     windows = list(Window.objects.all())
+        
     for i in range(items_quantity):
-        rooms_items = random.sample(rooms, 3)
-        windows_items = random.sample(windows, 3)
-        chair = baker.make(Chair)
-        bed = baker.make(Bed)
-        table = baker.make(Table)
-        windows_fittings = baker.make(WindowFittings)
+        rooms_items = random.sample(rooms, 5)
+        windows_items = random.sample(windows, 5)
         for rooms_item in rooms_items:
-            chair.rooms.add(rooms_item)
-            bed.rooms.add(rooms_item)
-            table.rooms.add(rooms_item)
-        chair.save()
-        bed.save()
-        table.save()
+            chairs_all[i].rooms.add(rooms_item)
+            beds_all[i].rooms.add(rooms_item)
+            tables_all[i].rooms.add(rooms_item)
+        chairs_all[i].save()
+        beds_all[i].save()
+        tables_all[i].save()
         for windows_item in windows_items:
-            windows_fittings.windows.add(windows_item)
-        windows_fittings.save()
-        print("Created furniture and window fittings ", i+1, " of ", items_quantity, " - OK")
+            win_fittings_all[i].windows.add(windows_item)
+        win_fittings_all[i].save()
+        print("Created relations for rooms and windows ", i+1, " of ", items_quantity, " - OK")
+    for i in range(items_quantity):        
+        create_room_with_related_objs(rooms[i].id)
+        print("Created RoomWithRelatedObjsRebuildInApp ", i+1, " of ", items_quantity, " - OK")
