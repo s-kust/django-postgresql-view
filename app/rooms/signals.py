@@ -114,13 +114,14 @@ def _window_changed_process_related_rooms(window_instance):
 
 
 @receiver(m2m_changed, sender=WindowFittings.windows.through)
-def windows_fitting_m2m_changed_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+def windows_fitting_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
     logger.info(
         msg="; windows_fitting_m2m_changed_update_related_rooms - action: " + action)
-    if action == 'post_add' or action == 'post_remove':
-        for window_id in pk_set:
-            window_by_id = Window.objects.filter(id=window_id).first()
-            _window_changed_process_related_rooms(window_by_id)
+    if action != 'post_add' and action != 'post_remove':
+        return
+    for window_id in pk_set:
+        window_by_id = Window.objects.filter(id=window_id).first()
+        _window_changed_process_related_rooms(window_by_id)
 
 
 @receiver(post_save, sender=WindowFittings)
@@ -181,7 +182,7 @@ def decoration_changed_update_related_rooms(sender, instance, **kwargs):
 
 
 @receiver(m2m_changed, sender=Decoration.souvenirs.through)
-def decoration_souvenir_m2m_changed_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+def decoration_souvenir_m2m_changed_update_related_rooms(sender, instance, action, **kwargs):
     logger.info(
         msg="; decoration_souvenir_m2m_changed_update_related_rooms - action: " + action)
     if action == 'post_add' or action == 'post_remove':
@@ -231,48 +232,51 @@ def table_changed_update_related_rooms(sender, instance, **kwargs):
 
 
 @receiver(m2m_changed, sender=Chair.rooms.through)
-def chair_rooms_m2m_changed_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+def chair_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
     logger.info(msg="; chair_rooms_m2m_changed_update_related_rooms - " +
                 "rooms pk_set: " + str(pk_set) + " action: " + action)
-    if action == 'post_add' or action == 'post_remove':
-        for room_id in pk_set:
-            room_with_related_objs = get_or_create_room_with_related_objs(
-                room_id)
-            if not room_with_related_objs:
-                continue
-            source_room = Room.objects.filter(id=room_id).first()
-            source_room_data = RoomSerializer(source_room).data
-            room_with_related_objs.chairs = source_room_data['chairs']
-            room_with_related_objs.save()
+    if action != 'post_add' and action != 'post_remove':
+        return
+    for room_id in pk_set:
+        room_with_related_objs = get_or_create_room_with_related_objs(
+            room_id)
+        if not room_with_related_objs:
+            continue
+        source_room = Room.objects.filter(id=room_id).first()
+        source_room_data = RoomSerializer(source_room).data
+        room_with_related_objs.chairs = source_room_data['chairs']
+        room_with_related_objs.save()
 
 
 @receiver(m2m_changed, sender=Bed.rooms.through)
-def bed_rooms_m2m_changed_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+def bed_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
     logger.info(msg="; bed_rooms_m2m_changed_update_related_rooms - " +
                 "rooms pk_set: " + str(pk_set) + " action: " + action)
-    if action == 'post_add' or action == 'post_remove':
-        for room_id in pk_set:
-            room_with_related_objs = get_or_create_room_with_related_objs(
-                room_id)
-            if not room_with_related_objs:
-                continue
-            source_room = Room.objects.filter(id=room_id).first()
-            source_room_data = RoomSerializer(source_room).data
-            room_with_related_objs.beds = source_room_data['beds']
-            room_with_related_objs.save()
+    if action != 'post_add' and action != 'post_remove':
+        return
+    for room_id in pk_set:
+        room_with_related_objs = get_or_create_room_with_related_objs(
+            room_id)
+        if not room_with_related_objs:
+            continue
+        source_room = Room.objects.filter(id=room_id).first()
+        source_room_data = RoomSerializer(source_room).data
+        room_with_related_objs.beds = source_room_data['beds']
+        room_with_related_objs.save()
 
 
 @receiver(m2m_changed, sender=Table.rooms.through)
-def table_rooms_m2m_changed_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+def table_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
     logger.info(msg="; table_rooms_m2m_changed_update_related_rooms - " +
                 "rooms pk_set: " + str(pk_set) + " action: " + action)
-    if action == 'post_add' or action == 'post_remove':
-        for room_id in pk_set:
-            room_with_related_objs = get_or_create_room_with_related_objs(
-                room_id)
-            if not room_with_related_objs:
-                continue
-            source_room = Room.objects.filter(id=room_id).first()
-            source_room_data = RoomSerializer(source_room).data
-            room_with_related_objs.tables = source_room_data['tables']
-            room_with_related_objs.save()
+    if action != 'post_add' and action != 'post_remove':
+        return
+    for room_id in pk_set:
+        room_with_related_objs = get_or_create_room_with_related_objs(
+            room_id)
+        if not room_with_related_objs:
+            continue
+        source_room = Room.objects.filter(id=room_id).first()
+        source_room_data = RoomSerializer(source_room).data
+        room_with_related_objs.tables = source_room_data['tables']
+        room_with_related_objs.save()
