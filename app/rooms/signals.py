@@ -7,6 +7,10 @@ from rooms.serializers import DecorationSerializer, DoorSerializer, RoomSerializ
 
 logger = logging.getLogger(__name__)
 
+#############################################
+# Approach 1 - PostgreSQL Materialized View #
+#############################################
+
 
 @receiver(post_save, sender=WindowFittings)
 @receiver(post_save, sender=Window)
@@ -24,24 +28,32 @@ logger = logging.getLogger(__name__)
 @receiver(m2m_changed, sender=Bed.rooms.through)
 def update_view_rooms_related_objects(sender, **kwargs):
     # simple code but costly execution
-    # because it rebuilds all rooms,
+    # because it rebuilds all rooms everytime,
     # including those that don't need to be recalculated.
     with connection.cursor() as cursor:
         cursor.execute(
             "REFRESH MATERIALIZED VIEW CONCURRENTLY rooms_related_objects;")
 
+################################################
+# Approach 2 - new 'artificial' model          #
+# RoomWithRelatedObjsRebuildInApp              #
+# that stores rooms parameters                 #
+# together with all their related objects data #
+################################################
+
 
 def create_room_with_related_objs(room_id):
     logger.info(msg="; create_room_with_related_objs: " + str(room_id))
+
+    # Make sure the given room ID is valid
     source_room = Room.objects.filter(id=room_id).first()
     if not source_room:
         logger.error(msg="; not found room with ID " + str(room_id))
         return
-    if RoomWithRelatedObjsRebuildInApp.objects.filter(
-            id=room_id).exists():
-        logger.error(msg="; found RoomWithRelatedObjsRebuildInApp with ID " +
-                     str(room_id) + ", no need to create new")
-        return
+
+    # All the work of building up-to-date data
+    # about related objects is performed by the RoomSerializer,
+    # which is called here.
     source_room_data = RoomSerializer(source_room).data
     room_with_related_objs = RoomWithRelatedObjsRebuildInApp(id=room_id)
 
@@ -67,10 +79,15 @@ def create_room_with_related_objs(room_id):
     room_with_related_objs.height = source_room_data['height']
     room_with_related_objs.type = source_room_data['type']
 
-    # add windows
+    # add windows and window fittings
     room_with_related_objs.windows = source_room_data['windows']
 
     room_with_related_objs.save()
+
+# if RoomWithRelatedObjsRebuildInApp object does not exist for a given room ID,
+# create it from scratch and build all its fields that store JSON data about related objects.
+# Otherwise, return it, so the calling functiion will rebuild
+# only the fields that have changed, and not all of them.
 
 
 def get_or_create_room_with_related_objs(room_id):
@@ -83,6 +100,9 @@ def get_or_create_room_with_related_objs(room_id):
     else:
         create_room_with_related_objs(room_id)
         return None
+
+# Whenever something changes (window, souvenirs, furniture, etc.),
+# we have to rebuild all the rooms that contain the changed object.
 
 
 @receiver(post_save, sender=Room)
