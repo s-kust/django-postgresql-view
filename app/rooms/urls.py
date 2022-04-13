@@ -7,8 +7,10 @@ router = DefaultRouter()
 router.register(r'windows', views.WindowViewSet, basename="windows")
 router.register(r'window_fittings', views.WindowFittingsViewSet,
                 basename="window_fittings")
-router.register(r'rooms', views.RoomViewSet, basename="rooms")
-router.register(r'rooms2', views.RoomsRelatedObjectsViewSet, basename="rooms2")
+router.register(r'rooms_native', views.RoomViewSet, basename="rooms_native")
+router.register(r'rooms_v2', views.RoomsRelatedV2ViewSet, basename="rooms_v2")
+router.register(r'rooms_mat_view',
+                views.RoomsRelatedObjectsViewSet, basename="rooms_mat_view")
 router.register(r'souvenirs', views.SouvenirViewSet, basename="souvenirs")
 router.register(r'tables', views.TableViewSet, basename="tables")
 router.register(r'doors', views.DoorViewSet, basename="doors")

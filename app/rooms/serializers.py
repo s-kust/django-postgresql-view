@@ -1,6 +1,6 @@
 import logging
 from rest_framework import serializers
-from rooms.models import WindowFittings, Window, Door, Souvenir, Decoration, Room, Chair, Bed, Table, RoomsRelatedObjectsMaterializedView
+from rooms.models import WindowFittings, Window, Door, Souvenir, Decoration, Room, Chair, Bed, Table, RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp
 
 logger = logging.getLogger(__name__)
 
@@ -149,4 +149,11 @@ class RoomsRelatedObjectsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RoomsRelatedObjectsMaterializedView
+        fields = ('__all__')
+
+
+class RoomsRelatedV2Serializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = RoomWithRelatedObjsRebuildInApp
         fields = ('__all__')

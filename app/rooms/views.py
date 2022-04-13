@@ -3,9 +3,10 @@ from rest_framework import viewsets
 
 from rooms.serializers import WindowSerializer, RoomSerializer, \
     RoomsRelatedObjectsSerializer, SouvenirSerializer, TableSerializer, \
-    DecorationSerializer, DoorSerializer, ChairSerializer, BedSerializer, WindowFittingsSerializer
+    DecorationSerializer, DoorSerializer, ChairSerializer, BedSerializer, \
+    WindowFittingsSerializer, RoomsRelatedV2Serializer
 from rooms.models import Window, Room, RoomsRelatedObjectsMaterializedView, \
-    Souvenir, Table, Decoration, Door, Chair, Bed, WindowFittings
+    Souvenir, Table, Decoration, Door, Chair, Bed, WindowFittings, RoomWithRelatedObjsRebuildInApp
 
 
 class RoomViewSet(viewsets.ModelViewSet):
@@ -20,6 +21,11 @@ class RoomViewSet(viewsets.ModelViewSet):
 class RoomsRelatedObjectsViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RoomsRelatedObjectsSerializer
     queryset = RoomsRelatedObjectsMaterializedView.objects.all()
+
+
+class RoomsRelatedV2ViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = RoomsRelatedV2Serializer
+    queryset = RoomWithRelatedObjsRebuildInApp.objects.all()
 
 # The following classes are to test
 # if the post_save signal works,
