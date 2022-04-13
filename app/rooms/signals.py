@@ -189,94 +189,60 @@ def decoration_souvenir_m2m_changed_update_related_rooms(sender, instance, actio
         _decoration_changed_process_related_rooms(instance)
 
 
+def _check_item_is_furniture(item):
+    is_bed = item.__class__.__name__ == 'Bed'
+    is_table = item.__class__.__name__ == 'Table'
+    is_chair = item.__class__.__name__ == 'Chair'
+    if not is_bed and not is_table and not is_chair:
+        logger.error(msg="; chair_bed_table_m2m_chng - wrong instance.__class__.__name__ - " +
+                     item.__class__.__name__)
+        return False
+    return True
+
+
+def _furniture_update_room_related_data(room_id,  class_name):
+    room_with_related_data = get_or_create_room_with_related_objs(room_id)
+    if not room_with_related_data:
+        # room_with_related_data was not obtained
+        # but created from scratch
+        # and fully built, with all fields,
+        # nothing to do here
+        return
+    source_room = Room.objects.filter(id=room_id).first()
+    source_room_data = RoomSerializer(source_room).data
+    if class_name == 'Bed':
+        room_with_related_data.beds = source_room_data['beds']
+    if class_name == 'Chair':
+        room_with_related_data.chairs = source_room_data['chairs']
+    if class_name == 'Table':
+        room_with_related_data.tables = source_room_data['tables']
+    room_with_related_data.save()
+
+
 @receiver(post_save, sender=Chair)
-def chair_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(
-        msg="; chair_changed_update_related_rooms - chair ID " + str(instance.id))
-    rooms = instance.rooms.all()
-    for room in rooms:
-        room_with_related_objs = get_or_create_room_with_related_objs(room.id)
-        if not room_with_related_objs:
-            continue
-        room_data = RoomSerializer(room).data
-        room_with_related_objs.chairs = room_data['chairs']
-        room_with_related_objs.save()
-
-
 @receiver(post_save, sender=Bed)
-def bed_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(
-        msg="; beds_changed_update_related_rooms - beds ID " + str(instance.id))
-    rooms = instance.rooms.all()
-    for room in rooms:
-        room_with_related_objs = get_or_create_room_with_related_objs(room.id)
-        if not room_with_related_objs:
-            continue
-        room_data = RoomSerializer(room).data
-        room_with_related_objs.beds = room_data['beds']
-        room_with_related_objs.save()
-
-
 @receiver(post_save, sender=Table)
-def table_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(
-        msg="; tables_changed_update_related_rooms - table ID " + str(instance.id))
+def chair_bed_table_changed_update_related_rooms(sender, instance, **kwargs):
+    logger.info(msg="; chair_bed_table_changed_update_related_rooms - " +
+                ", class - " + instance.__class__.__name__ + ", instance ID - " + str(instance.id))
+    if not _check_item_is_furniture(instance):
+        return
     rooms = instance.rooms.all()
     for room in rooms:
-        room_with_related_objs = get_or_create_room_with_related_objs(room.id)
-        if not room_with_related_objs:
-            continue
-        room_data = RoomSerializer(room).data
-        room_with_related_objs.tables = room_data['tables']
-        room_with_related_objs.save()
-
-
-@receiver(m2m_changed, sender=Chair.rooms.through)
-def chair_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
-    logger.info(msg="; chair_rooms_m2m_changed_update_related_rooms - " +
-                "rooms pk_set: " + str(pk_set) + " action: " + action)
-    if action != 'post_add' and action != 'post_remove':
-        return
-    for room_id in pk_set:
-        room_with_related_objs = get_or_create_room_with_related_objs(
-            room_id)
-        if not room_with_related_objs:
-            continue
-        source_room = Room.objects.filter(id=room_id).first()
-        source_room_data = RoomSerializer(source_room).data
-        room_with_related_objs.chairs = source_room_data['chairs']
-        room_with_related_objs.save()
-
-
-@receiver(m2m_changed, sender=Bed.rooms.through)
-def bed_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
-    logger.info(msg="; bed_rooms_m2m_changed_update_related_rooms - " +
-                "rooms pk_set: " + str(pk_set) + " action: " + action)
-    if action != 'post_add' and action != 'post_remove':
-        return
-    for room_id in pk_set:
-        room_with_related_objs = get_or_create_room_with_related_objs(
-            room_id)
-        if not room_with_related_objs:
-            continue
-        source_room = Room.objects.filter(id=room_id).first()
-        source_room_data = RoomSerializer(source_room).data
-        room_with_related_objs.beds = source_room_data['beds']
-        room_with_related_objs.save()
+        _furniture_update_room_related_data(
+            room.id, instance.__class__.__name__)
 
 
 @receiver(m2m_changed, sender=Table.rooms.through)
-def table_rooms_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
-    logger.info(msg="; table_rooms_m2m_changed_update_related_rooms - " +
-                "rooms pk_set: " + str(pk_set) + " action: " + action)
+@receiver(m2m_changed, sender=Bed.rooms.through)
+@receiver(m2m_changed, sender=Chair.rooms.through)
+def chair_bed_table_m2m_chng_update_related_rooms(sender, instance, pk_set, action, **kwargs):
+    logger.info(msg="; chair_bed_table_m2m_chng_update_related_rooms - " +
+                "rooms pk_set: " + str(pk_set) + ", action: " + action + ", class - " + instance.__class__.__name__)
+    if not _check_item_is_furniture(instance):
+        return
     if action != 'post_add' and action != 'post_remove':
         return
     for room_id in pk_set:
-        room_with_related_objs = get_or_create_room_with_related_objs(
-            room_id)
-        if not room_with_related_objs:
-            continue
-        source_room = Room.objects.filter(id=room_id).first()
-        source_room_data = RoomSerializer(source_room).data
-        room_with_related_objs.tables = source_room_data['tables']
-        room_with_related_objs.save()
+        _furniture_update_room_related_data(
+            room_id, instance.__class__.__name__)
