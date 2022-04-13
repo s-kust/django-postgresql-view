@@ -69,49 +69,49 @@ class Window(CommonInfo):
 
 
 class WindowFittings (CommonInfo):
-    CHOICES = (
+    WF_CHOICES = (
         ("WFT1", "Window Fittings Type 1"),
         ("WFT2", "Window Fittings Type 2"),
         ("WFT3", "Window Fittings Type 3"),
     )
     type = models.CharField(
-        max_length=5, choices=CHOICES
+        max_length=5, choices=WF_CHOICES
     )
     windows = models.ManyToManyField(Window, related_name="fittings")
 
 
 class Chair (CommonInfo):
-    CHOICES = (
+    CHAIR_TYPE_CHOICES = (
         ("CHT1", "Chair Type 1"),
         ("CHT2", "Chair Type 2"),
         ("CHT3", "Chair Type 3"),
     )
     type = models.CharField(
-        max_length=5, choices=CHOICES
+        max_length=5, choices=CHAIR_TYPE_CHOICES
     )
     rooms = models.ManyToManyField(Room, related_name="chairs")
 
 
 class Bed (CommonInfo):
-    CHOICES = (
+    BED_TYPE_CHOICES = (
         ("BT1", "Bed Type 1"),
         ("BT2", "Bed Type 2"),
         ("BT3", "Bed Type 3"),
     )
     type = models.CharField(
-        max_length=5, choices=CHOICES
+        max_length=5, choices=BED_TYPE_CHOICES
     )
     rooms = models.ManyToManyField(Room, related_name="beds")
 
 
 class Table (CommonInfo):
-    CHOICES = (
+    TABLE_TYPE_CHOICES = (
         ("TBLT1", "Table Type 1"),
         ("TBLT2", "Table Type 2"),
         ("TBLT3", "Table Type 3"),
     )
     type = models.CharField(
-        max_length=5, choices=CHOICES
+        max_length=5, choices=TABLE_TYPE_CHOICES
     )
     rooms = models.ManyToManyField(Room, related_name="tables")
 
