@@ -9,6 +9,8 @@ In this repository, you can find two solutions to the same problem. One solution
 
 Of course, running two solutions together is redundant. Only one of them should be used in a real-world project. It depends on how urgently one needs to update the cached data. If you don't need to do this immediately after the event, the PostgreSQL materialized view might be the best option.
 
+## How This Repository Can Help You
+
 Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
 
 It does not always make sense to apply the methods shown here. They are only helpful if SELECT requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
