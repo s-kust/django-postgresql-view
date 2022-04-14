@@ -3,3 +3,4 @@ model-bakery
 psycopg2-binary
 djangorestframework
 requests
+pytest-django
