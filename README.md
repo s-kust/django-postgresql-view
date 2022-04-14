@@ -1,20 +1,31 @@
 # Django PostgreSQL Materialized View Example
-This project aims to demonstrate the usage of the PostgreSQL materialized view in Django to speed up a complex SELECT query with many JOIN operations. Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
+Initially, this project aimed to demonstrate the usage of the PostgreSQL materialized view in Django to cache the results of the complex SELECT query with many JOIN operations. The task is described in detail below. Such assignments of optimizing costly queries often appear in real-world practice. 
 
-The PostgreSQL materialized view in the database contains the cached result of some intricate SELECT query execution. The optimization is to return the cached data from the view instead of re-executing queries. While trying to speed up the users' requests execution, it is also important to prevent users from getting stale cached data.
+The PostgreSQL materialized view in the database contains the cached result of some intricate SELECT query execution. The optimization is to return the cached data from the view instead of re-executing queries. Of course, we try to speed up the users' requests execution. At the same time, it is also crucial to prevent users from getting stale cached data.
 
-It makes sense to apply this method if SELECT requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
+Later, the author realized that the PostgreSQL materialized view is not the best way to solve the assignments. More on this below. Therefore, I have added another way to solve the same problem. 
+
+In this repository, you can find two solutions to the same problem. One solution uses a PostgreSQL materialized view, and the other does not. If you build and run the application, you'll see both approaches at work. The Django `post_save` and `m2m_changed` signals trigger them concurrently. 
+
+Of course, running two solutions together is redundant. Only one of them should be used in a real-world project. It depends on how urgently one needs to update the cached data. If you don't need to do this immediately after the event, the PostgreSQL materialized view might be the best option.
+
+Here you can find the code that works, as well as explanations. The project uses a Django REST framework to manipulate the data in JSON format.
+
+It does not always make sense to apply the methods shown here. They are only helpful if SELECT requests occur more often than data modifications. The optimization may speed up the execution of reading requests. On the other hand, queries that insert, update, or delete data will take longer and consume more computing resources.
 
 In this repository, you can find working examples of the following:
 1. PostgreSQL materialized view in Django.
 1. `EagerLoadingMixin` in Django REST framework serializer classes to solve the N+1 queries problem.
+1. Updating the instances that have nested serializers. You can explicitly write update methods in the serializer class. Or you can simply mark nested serializers as read-only. The `app/rooms/serializers.py` file contains examples of both approaches.
 1. Usage of the most generic `viewsets.ModelViewSet` to build views in Django REST framework fast and easy. 
-1. Advanced PostgreSQL SQL Query with several Common Table Expressions and JSON functions.
-1. Django `post_save` and `m2m_changed` signals.
-1. Populating the Django database with fake generated data for testing. See the `app/initial_db_fill.py` file. 
+1. Advanced PostgreSQL SQL query with several Common Table Expressions and JSON functions. See the `migrations.RunSQL` code in the `app/rooms/migrations/0004_roomsrelatedobjects.py` file. 
+1. Usage of Django `post_save` and `m2m_changed` signals, see the `app/rooms/signals.py` file.
+1. Processing of the actions during the `m2m_changed` signal handling.
+1. Populating the Django database with fake generated data for testing. See the `app/initial_db_fill.py` file.
+1. Logging configuration and usage in Django, see files `app/app/settings.py` and `app/rooms/signals.py`.
 
 ## Task
-We have to provide the users with JSON data about some object. Also, the data should contain all other entities associated with that object. We are dealing with a complex, bloated database schema. It includes many redundant models, and we are not allowed to get rid of them. Therefore, read requests are complex and resource-intensive. It often happens on legacy projects. 
+We have to provide the users with JSON data about some object. The data should contain all other entities associated with that object. We are dealing with a complex, bloated database schema. It includes many redundant models, and we are not allowed to get rid of them. Therefore, read requests are complex and resource-intensive. It often happens on legacy projects. 
 
 Our primary entity is the room. Each room has one door. Also, the rooms have many-to-many relationships with different types of furniture: beds, tables, and chairs. Each room has one or more windows. In turn, windows have many-to-many relationships with window fittings. Among other things, the room may have a set of souvenirs, which is called decoration.
 
@@ -145,7 +156,7 @@ class Table (CommonInfo):
 
 The test database contains 500 rooms and the same number of furniture items, as well as 50 doors and 150 souvenirs. See the details in the `app/initial_db_fill.py` file. In practice, the number of objects can be in the millions, and the models can be much more complex. 
 
-## Solution
+## The Django PostgreSQL Materialized View Solution
 First, you can explore how the required data is returned by the usual means of the Django REST framework. 
 
 Take a look at the `app/rooms/serializers.py` and `app/rooms/views.py` files. In the serializers file, the `EagerLoadingMixin` class deserves attention. It effectively solves the common N+1 queries problem.
@@ -162,9 +173,15 @@ class RoomViewSet(viewsets.ModelViewSet):
         return qs
 ```
 
-Run the system in Docker containers using the supplied `docker-compose.yml` file. Please pay attention to the two command variants that it contains. It is enough to perform the initial filling of the database once. You don't have to spend time on it during the subsequent builds. The `pgadmin` container will make it easier for you to explore the database and experiment with it.
+Run the system in Docker containers using the supplied `docker-compose.yml` file. Wait for the tests to pass. It takes several minutes. The creation of the test database takes most of that time. 
 
-After a successful start of the system, you can view information about all rooms at `localhost:8000/rooms/`, as well as about all the objects associated with them. Also, you can request information about individual rooms by their IDs, e.g. `localhost:8000/rooms/311/`. The test database is small, so these queries are quite fast. In practice, they can be extremely slow and annoying for users. They can be optimized using a PostgreSQL materialized view.
+Please note the `pgadmin` container. It will make it easier for you to explore the database and experiment with it. Use the `localhost:8080/` endpoint to access the utility.
+
+After a successful start of the system, you can view information about all rooms at `localhost:8000/rooms/`. Also, it shows all the objects associated with the room. You can request information about individual rooms by their IDs, e.g., `localhost:8000/rooms/311/`. 
+
+If you use the `localhost:8000/rooms/` endpoint, the system each time rebuilds all the data about the associated objects. The test database is small, so these queries are reasonably fast. In practice, they can be extremely slow and annoying for users. They can be optimized using a PostgreSQL materialized view or other methods.
+
+The `localhost:8000/rooms_mat_view/` endpoint returns the same information from the cache in the PostgreSQL materialized view. You can test the speed of query execution. One of the following sections describes how to do that. If you run the tests, you will see that this endpoint works much faster.
 
 ## The SQL Query That Creates the PostgreSQL Materialized View
 
@@ -389,9 +406,9 @@ You can create the PostgreSQL materialized view directly in the database by exec
 To use the newly created model, we have to build its serializer and view. Also, register the view in the `urls.py` file. See the code of the classes `RoomsRelatedObjectsSerializer` and `RoomsRelatedObjectsViewSet`. There is nothing special about them. Note that the `RoomsRelatedObjectsViewSet` class is a `ReadOnlyModelViewSet` class inheritor, and not a `ModelViewSet` inheritor.
 
 ## Testing the Optimization Effect
-You can get the rooms' data using the PostgreSQL materialized view at the address `localhost:8000/rooms2/`. You can see the complete data about all rooms at once. Also, try to request data about individual rooms using their IDs. Make sure the data matches the one at the address `localhost:8000/rooms/`. 
+You can get the rooms' data using the PostgreSQL materialized view at the address `localhost:8000/rooms_mat_view/`. You can see the complete data about all rooms at once. Also, try to request data about individual rooms using their IDs. Make sure the data matches the one at the address `localhost:8000/rooms/`. 
 
-The `rooms` app has a simple middleware that logs all requests. It lives in the file `app/rooms/middleware/log_execution_time.py`. 
+The `rooms` app has a simple middleware that logs all requests. It lives in the `app/rooms/middleware/log_execution_time.py` file. 
 
 ```python
 import time
@@ -422,7 +439,7 @@ The `supplementary_scripts` folder contains the file `make_requests_to_log_time.
 1. On each iteration of the loop, using that list, it makes a pair of requests to random rooms in the usual way and through the PostgreSQL materialized view. The logs of these requests are stored in a file.
 1. You can change the number of request pairs by modifying the `requests_count` variable. Its default value is 20.
 
-Run the `make_requests_to_log_time.py` script. Then find the `logs_all_here.log` file and copy it to the folder. It is advisable to remove lines from the log file that are not relevant. 
+Run the `make_requests_to_log_time.py` script. Then find the `logs_all_here.log` file and copy it to the `supplementary_scripts` folder. It is advisable to remove lines from the log file that are not relevant. 
 
 After that, run the second script `process_logs.py`. Pass the name of the log file as a parameter. This script splits the entries in the log file into two groups and calculates the average execution time for each of them. As an output, you will hopefully get something like the following.
 
@@ -430,8 +447,26 @@ After that, run the second script `process_logs.py`. Pass the name of the log fi
 
 When using the PostgreSQL materialized view, the mean query execution time decreases significantly. In real-world conditions, the difference is even more substantial.
 
+## Alternative Solution
+
+The PostgreSQL materialized view solution has a serious problem. Every time it receives a `post_save` or `m2m_changed` signal, it rebuilds all the fields for all rooms. It is redundant. 
+
+Only some rooms are associated with the changed object. It is enough to rebuild the data on them. A real-world database may contain millions of rooms. So the inefficiency may waste significant resources.
+
+To solve the assignment effectively, I have created one more model. It is called `RoomWithRelatedObjsRebuildInApp`. It is very similar to the `RoomsRelatedObjectsMaterializedView` model. However, it is fully controlled by Django. It has a default `managed = True` property.
+
+In the `app/rooms/signals.py` file, you can find several functions that update the fields of instances of this model as needed. For example, the `@receiver(post_save, sender=Bed)` signal is generated when the bed changes. It triggers the corresponding function. First, that function gets a list of IDs for all the rooms related to that bed. Then it rebuilds the `beds` field in `RoomWithRelatedObjsRebuildInApp` model instances that have IDs from the list.
+
+The `m2m_changed` signal is also processed. For example, the `@receiver(m2m_changed, sender=Decoration.souvenirs.through)` signal triggers the `decoration_souvenir_m2m_changed_update_related_rooms` function. 
+
+Such an approach is flexible. Also, it helps save computing resources. Although, it required the developer to write and maintain more functions. Some of those functions are complicated because the database schema is bloated. However, the alternative is to write pure SQL code, which is not an easy task either.
+
+You can use a PostgreSQL materialized view if you don't need to recalculate its data immediately after one of its related objects changes. This solution may be suitable if the requirements for the freshness of the cached data are not very strict. Perhaps in your case, it is enough to update the materialized view, for example, once a day or once a week.
+
+Perhaps you have strict requirements for the freshness of cached data. The boss says that the cached data must be 100% up to date at all times. In such a case, use the alternative solution described in this section. You can find examples of the functions that process signals in the `app/rooms/signals.py` file.
+ 
 ## Testing the Django Signals
 
-The PostgreSQL materialized view should be updated automatically every time the data in the database changes. The Django signals `post_save` and `m2m_changed` are used for that, as described above.
+The PostgreSQL materialized view should be updated automatically every time the data in the database changes. The Django signals `post_save` and `m2m_changed` are used for that, as described above. The project contains several `pytest` tests. Also, you can manually check the functioning of the signals. 
 
-To check the functioning of the signals, you can update the names of some souvenirs or tables in the browser. Use the endpoint `localhost:8000/souvenirs/` or `localhost:8000/tables/` to send the PUT requests. After that, ensure that the information on the rooms at the `localhost:8000/rooms2/` endpoint has also been updated.
+To test manually, update the names of some souvenirs or tables in the browser. Use the endpoint `localhost:8000/souvenirs/` or `localhost:8000/tables/` to send the PUT or PATCH requests. After that, ensure that the information on the rooms at the `localhost:8000/rooms_mat_view/` and `localhost:8000/rooms_v2/` endpoints has also been updated.

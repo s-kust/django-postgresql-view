@@ -21,6 +21,6 @@ if __name__ == '__main__':
         _ = requests.get('http://localhost:8000/rooms/' +
                          str(room_id_for_rooms))
         room_id_for_rooms2 = random.choice(room_ids)
-        _ = requests.get('http://localhost:8000/rooms2/' +
+        _ = requests.get('http://localhost:8000/rooms_mat_view/' +
                          str(room_id_for_rooms2))
         print("Request pair", i+1, "of", requests_count)
