@@ -3,7 +3,7 @@ import random
 import string
 import pytest
 
-from rooms.models import Door, Room, RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp, Chair, Table, Bed
+from rooms.models import Door, Room, RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp, Chair, Table, Bed, WindowFittings, Window
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,48 @@ def test_door_change_reflected_in_its_rooms():
         room_view.refresh_from_db()
         room_2.refresh_from_db()
         assert room_view.door['name'] == new_door_name == room_2.door['name']
+
+
+def _search_fitting_in_room_view_or_v2(fitting_id, room_with_related_data):
+    found_fitting = False
+    fitting_name = None
+    for window in room_with_related_data.windows:
+        if found_fitting:
+            break
+        for fitting in window['fittings']:
+            if not fitting:
+                break
+            if fitting['id'] == fitting_id:
+                found_fitting = True
+                fitting_name = fitting['name']
+                break
+    return found_fitting, fitting_name
+
+
+@pytest.mark.django_db
+def test_window_fitting_change_reflected_in_its_rooms():
+    # fittings have several windows,
+    # every window has one room
+    fittings_all = list(WindowFittings.objects.all())
+    fitting = random.choice(fittings_all)
+    letters = string.ascii_letters
+    new_wf_name = ''.join(random.choice(letters) for i in range(10))
+    fitting.name = new_wf_name
+    fitting.save()
+    rooms_set = set()
+    for window in fitting.windows.all():
+        rooms_set.add(window.room)
+    for room in rooms_set:
+        room_view = RoomsRelatedObjectsMaterializedView.objects.get(pk=room.id)
+        room_2 = RoomWithRelatedObjsRebuildInApp.objects.get(pk=room.id)
+        found_fitting_in_view, found_name_view = _search_fitting_in_room_view_or_v2(
+            fitting.id, room_view)
+        assert found_fitting_in_view
+        assert found_name_view == new_wf_name
+        found_fitting_in_v2, found_name_v2 = _search_fitting_in_room_view_or_v2(
+            fitting.id, room_2)
+        assert found_fitting_in_v2
+        assert found_name_v2 == new_wf_name
 
 
 @pytest.mark.django_db
