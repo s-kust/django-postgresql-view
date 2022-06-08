@@ -1,8 +1,8 @@
 import logging
-import pytest
-from django.db import connections
 
 import psycopg2
+import pytest
+from django.db import connections
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 logger = logging.getLogger(__name__)

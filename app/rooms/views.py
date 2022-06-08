@@ -1,12 +1,16 @@
 from django.shortcuts import render
 from rest_framework import viewsets
 
-from rooms.serializers import WindowSerializer, RoomSerializer, \
-    RoomsRelatedObjectsSerializer, SouvenirSerializer, TableSerializer, \
-    DecorationSerializer, DoorSerializer, ChairSerializer, BedSerializer, \
-    WindowFittingsSerializer, RoomsRelatedV2Serializer
-from rooms.models import Window, Room, RoomsRelatedObjectsMaterializedView, \
-    Souvenir, Table, Decoration, Door, Chair, Bed, WindowFittings, RoomWithRelatedObjsRebuildInApp
+from rooms.models import (Bed, Chair, Decoration, Door, Room,
+                          RoomsRelatedObjectsMaterializedView,
+                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
+                          Window, WindowFittings)
+from rooms.serializers import (BedSerializer, ChairSerializer,
+                               DecorationSerializer, DoorSerializer,
+                               RoomSerializer, RoomsRelatedObjectsSerializer,
+                               RoomsRelatedV2Serializer, SouvenirSerializer,
+                               TableSerializer, WindowFittingsSerializer,
+                               WindowSerializer)
 
 
 class RoomViewSet(viewsets.ModelViewSet):

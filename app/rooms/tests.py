@@ -1,9 +1,13 @@
 import logging
 import random
 import string
+
 import pytest
 
-from rooms.models import Door, Room, RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp, Chair, Table, Bed, WindowFittings, Window
+from rooms.models import (Bed, Chair, Door, Room,
+                          RoomsRelatedObjectsMaterializedView,
+                          RoomWithRelatedObjsRebuildInApp, Table, Window,
+                          WindowFittings)
 
 logger = logging.getLogger(__name__)
 

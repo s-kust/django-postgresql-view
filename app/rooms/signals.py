@@ -1,20 +1,14 @@
 import logging
+
 from django.db import connection
-from django.db.models.signals import post_save, m2m_changed
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
-from rooms.models import (
-    WindowFittings,
-    Window,
-    Door,
-    Souvenir,
-    Decoration,
-    Room,
-    Chair,
-    Bed,
-    Table,
-    RoomWithRelatedObjsRebuildInApp,
-)
-from rooms.serializers import DecorationSerializer, DoorSerializer, RoomSerializer
+
+from rooms.models import (Bed, Chair, Decoration, Door, Room,
+                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
+                          Window, WindowFittings)
+from rooms.serializers import (DecorationSerializer, DoorSerializer,
+                               RoomSerializer)
 
 logger = logging.getLogger(__name__)
 

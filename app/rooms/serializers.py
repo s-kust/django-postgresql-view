@@ -1,6 +1,11 @@
 import logging
+
 from rest_framework import serializers
-from rooms.models import WindowFittings, Window, Door, Souvenir, Decoration, Room, Chair, Bed, Table, RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp
+
+from rooms.models import (Bed, Chair, Decoration, Door, Room,
+                          RoomsRelatedObjectsMaterializedView,
+                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
+                          Window, WindowFittings)
 
 logger = logging.getLogger(__name__)
 
