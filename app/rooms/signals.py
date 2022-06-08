@@ -2,7 +2,18 @@ import logging
 from django.db import connection
 from django.db.models.signals import post_save, m2m_changed
 from django.dispatch import receiver
-from rooms.models import WindowFittings, Window, Door, Souvenir, Decoration, Room, Chair, Bed, Table, RoomWithRelatedObjsRebuildInApp
+from rooms.models import (
+    WindowFittings,
+    Window,
+    Door,
+    Souvenir,
+    Decoration,
+    Room,
+    Chair,
+    Bed,
+    Table,
+    RoomWithRelatedObjsRebuildInApp,
+)
 from rooms.serializers import DecorationSerializer, DoorSerializer, RoomSerializer
 
 logger = logging.getLogger(__name__)
@@ -31,8 +42,8 @@ def update_view_rooms_related_objects(sender, **kwargs):
     # because it rebuilds all rooms everytime,
     # including those that don't need to be recalculated.
     with connection.cursor() as cursor:
-        cursor.execute(
-            "REFRESH MATERIALIZED VIEW CONCURRENTLY rooms_related_objects;")
+        cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY rooms_related_objects;")
+
 
 ################################################
 # Approach 2 - new 'artificial' model          #
@@ -42,7 +53,7 @@ def update_view_rooms_related_objects(sender, **kwargs):
 ################################################
 
 
-def create_room_with_related_objs(room_id):
+def create_room_with_related_objs(room_id: int) -> None:
     logger.info(msg="; create_room_with_related_objs: " + str(room_id))
 
     # Make sure the given room ID is valid
@@ -58,31 +69,30 @@ def create_room_with_related_objs(room_id):
     room_with_related_objs = RoomWithRelatedObjsRebuildInApp(id=room_id)
 
     # add door data
-    door_obj = source_room.door
-    door_data = DoorSerializer(door_obj).data
+    door_data = DoorSerializer(source_room.door).data
     room_with_related_objs.door = door_data
 
     # add decoration (souvenirs set) data
-    decoration_obj = source_room.decoration
-    decoration_data = DecorationSerializer(decoration_obj).data
+    decoration_data = DecorationSerializer(source_room.decoration).data
     room_with_related_objs.decoration = decoration_data
 
     # add chairs, beds, and tables
-    room_with_related_objs.chairs = source_room_data['chairs']
-    room_with_related_objs.beds = source_room_data['beds']
-    room_with_related_objs.tables = source_room_data['tables']
+    room_with_related_objs.chairs = source_room_data["chairs"]
+    room_with_related_objs.beds = source_room_data["beds"]
+    room_with_related_objs.tables = source_room_data["tables"]
 
     # add native parameters
-    room_with_related_objs.name = source_room_data['name']
-    room_with_related_objs.width = source_room_data['width']
-    room_with_related_objs.length = source_room_data['length']
-    room_with_related_objs.height = source_room_data['height']
-    room_with_related_objs.type = source_room_data['type']
+    room_with_related_objs.name = source_room_data["name"]
+    room_with_related_objs.width = source_room_data["width"]
+    room_with_related_objs.length = source_room_data["length"]
+    room_with_related_objs.height = source_room_data["height"]
+    room_with_related_objs.type = source_room_data["type"]
 
     # add windows and window fittings
-    room_with_related_objs.windows = source_room_data['windows']
+    room_with_related_objs.windows = source_room_data["windows"]
 
     room_with_related_objs.save()
+
 
 # if RoomWithRelatedObjsRebuildInApp object does not exist for a given room ID,
 # create it from scratch and build all its fields that store JSON data about related objects.
@@ -90,16 +100,15 @@ def create_room_with_related_objs(room_id):
 # only the fields that have changed, and not all of them.
 
 
-def get_or_create_room_with_related_objs(room_id):
-    room_with_related_objs = RoomWithRelatedObjsRebuildInApp.objects.filter(
-        id=room_id).first()
+def get_or_create_room_with_related_objs(room_id: int) -> None:
+    room_with_related_objs = RoomWithRelatedObjsRebuildInApp.objects.filter(id=room_id).first()
     if room_with_related_objs:
-        logger.info(msg="; RoomWithRelatedObjsRebuildInApp with ID " +
-                    str(room_id) + " already exists")
+        logger.info(msg="; RoomWithRelatedObjsRebuildInApp with ID " + str(room_id) + " already exists")
         return room_with_related_objs
     else:
         create_room_with_related_objs(room_id)
         return None
+
 
 # Whenever something changes (window, souvenirs, furniture, etc.),
 # we have to rebuild all the rooms that contain the changed object.
@@ -107,16 +116,15 @@ def get_or_create_room_with_related_objs(room_id):
 
 @receiver(post_save, sender=Room)
 def room_changes_update_related_room(sender, instance, **kwargs):
-    logger.info(msg="; room_changes_update_related_room: " +
-                str(instance.id))
+    logger.info(msg="; room_changes_update_related_room: " + str(instance.id))
     room_with_related_objs = get_or_create_room_with_related_objs(instance.id)
     if room_with_related_objs:
         source_room_data = RoomSerializer(instance).data
-        room_with_related_objs.name = source_room_data['name']
-        room_with_related_objs.width = source_room_data['width']
-        room_with_related_objs.length = source_room_data['length']
-        room_with_related_objs.height = source_room_data['height']
-        room_with_related_objs.type = source_room_data['type']
+        room_with_related_objs.name = source_room_data["name"]
+        room_with_related_objs.width = source_room_data["width"]
+        room_with_related_objs.length = source_room_data["length"]
+        room_with_related_objs.height = source_room_data["height"]
+        room_with_related_objs.type = source_room_data["type"]
         room_with_related_objs.save()
 
 
@@ -129,15 +137,14 @@ def _window_changed_process_related_rooms(window_instance):
     room_with_related_objs = get_or_create_room_with_related_objs(room.id)
     if room_with_related_objs:
         source_room_data = RoomSerializer(room).data
-        room_with_related_objs.windows = source_room_data['windows']
+        room_with_related_objs.windows = source_room_data["windows"]
         room_with_related_objs.save()
 
 
 @receiver(m2m_changed, sender=WindowFittings.windows.through)
 def windows_fitting_m2m_changed_update_related_rooms(sender, pk_set, action, **kwargs):
-    logger.info(
-        msg="; windows_fitting_m2m_changed_update_related_rooms - action: " + action)
-    if action != 'post_add' and action != 'post_remove':
+    logger.info(msg="; windows_fitting_m2m_changed_update_related_rooms - action: " + action)
+    if action != "post_add" and action != "post_remove":
         return
     for window_id in pk_set:
         window_by_id = Window.objects.filter(id=window_id).first()
@@ -146,8 +153,7 @@ def windows_fitting_m2m_changed_update_related_rooms(sender, pk_set, action, **k
 
 @receiver(post_save, sender=WindowFittings)
 def windows_fitting_changes_update_related_rooms(sender, instance, **kwargs):
-    logger.info(msg="; windows_fitting_changes_update_related_rooms: " +
-                str(instance.id))
+    logger.info(msg="; windows_fitting_changes_update_related_rooms: " + str(instance.id))
     windows = instance.windows.all()
     for window in windows:
         _window_changed_process_related_rooms(window)
@@ -155,15 +161,13 @@ def windows_fitting_changes_update_related_rooms(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Window)
 def window_changes_update_related_room(sender, instance, **kwargs):
-    logger.info(msg="; window_changes_update_related_room: " +
-                str(instance.id))
+    logger.info(msg="; window_changes_update_related_room: " + str(instance.id))
     _window_changed_process_related_rooms(instance)
 
 
 @receiver(post_save, sender=Door)
 def door_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(msg="; door_changed_update_related_rooms: " +
-                str(instance.id))
+    logger.info(msg="; door_changed_update_related_rooms: " + str(instance.id))
     rooms = Room.objects.filter(door=instance)
     for room in rooms:
         room_with_related_objs = get_or_create_room_with_related_objs(room.id)
@@ -187,8 +191,7 @@ def _decoration_changed_process_related_rooms(decoration_instance):
 
 @receiver(post_save, sender=Souvenir)
 def souvenir_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(msg="; souvenir_changed_update_related_rooms: " +
-                str(instance.id))
+    logger.info(msg="; souvenir_changed_update_related_rooms: " + str(instance.id))
     decorations_related = Decoration.objects.filter(souvenirs=instance)
     for decoration_instance in decorations_related:
         _decoration_changed_process_related_rooms(decoration_instance)
@@ -196,31 +199,28 @@ def souvenir_changed_update_related_rooms(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Decoration)
 def decoration_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(
-        msg="; decoration_changed_update_related_rooms:" + str(instance.id))
+    logger.info(msg="; decoration_changed_update_related_rooms:" + str(instance.id))
     _decoration_changed_process_related_rooms(instance)
 
 
 @receiver(m2m_changed, sender=Decoration.souvenirs.through)
 def decoration_souvenir_m2m_changed_update_related_rooms(sender, instance, action, **kwargs):
-    logger.info(
-        msg="; decoration_souvenir_m2m_changed_update_related_rooms - action: " + action)
-    if action == 'post_add' or action == 'post_remove':
+    logger.info(msg="; decoration_souvenir_m2m_changed_update_related_rooms - action: " + action)
+    if action == "post_add" or action == "post_remove":
         _decoration_changed_process_related_rooms(instance)
 
 
 def _check_item_is_furniture(item):
-    is_bed = item.__class__.__name__ == 'Bed'
-    is_table = item.__class__.__name__ == 'Table'
-    is_chair = item.__class__.__name__ == 'Chair'
+    is_bed = item.__class__.__name__ == "Bed"
+    is_table = item.__class__.__name__ == "Table"
+    is_chair = item.__class__.__name__ == "Chair"
     if not is_bed and not is_table and not is_chair:
-        logger.error(msg="; chair_bed_table_m2m_chng - wrong instance.__class__.__name__ - " +
-                     item.__class__.__name__)
+        logger.error(msg="; chair_bed_table_m2m_chng - wrong instance.__class__.__name__ - " + item.__class__.__name__)
         return False
     return True
 
 
-def _furniture_update_room_related_data(room_id,  class_name):
+def _furniture_update_room_related_data(room_id, class_name):
     room_with_related_data = get_or_create_room_with_related_objs(room_id)
     if not room_with_related_data:
         # room_with_related_data was not obtained
@@ -230,12 +230,12 @@ def _furniture_update_room_related_data(room_id,  class_name):
         return
     source_room = Room.objects.filter(id=room_id).first()
     source_room_data = RoomSerializer(source_room).data
-    if class_name == 'Bed':
-        room_with_related_data.beds = source_room_data['beds']
-    if class_name == 'Chair':
-        room_with_related_data.chairs = source_room_data['chairs']
-    if class_name == 'Table':
-        room_with_related_data.tables = source_room_data['tables']
+    if class_name == "Bed":
+        room_with_related_data.beds = source_room_data["beds"]
+    if class_name == "Chair":
+        room_with_related_data.chairs = source_room_data["chairs"]
+    if class_name == "Table":
+        room_with_related_data.tables = source_room_data["tables"]
     room_with_related_data.save()
 
 
@@ -243,26 +243,35 @@ def _furniture_update_room_related_data(room_id,  class_name):
 @receiver(post_save, sender=Bed)
 @receiver(post_save, sender=Table)
 def chair_bed_table_changed_update_related_rooms(sender, instance, **kwargs):
-    logger.info(msg="; chair_bed_table_changed_update_related_rooms - " +
-                ", class - " + instance.__class__.__name__ + ", instance ID - " + str(instance.id))
+    logger.info(
+        msg="; chair_bed_table_changed_update_related_rooms - "
+        + ", class - "
+        + instance.__class__.__name__
+        + ", instance ID - "
+        + str(instance.id)
+    )
     if not _check_item_is_furniture(instance):
         return
     rooms = instance.rooms.all()
     for room in rooms:
-        _furniture_update_room_related_data(
-            room.id, instance.__class__.__name__)
+        _furniture_update_room_related_data(room.id, instance.__class__.__name__)
 
 
 @receiver(m2m_changed, sender=Table.rooms.through)
 @receiver(m2m_changed, sender=Bed.rooms.through)
 @receiver(m2m_changed, sender=Chair.rooms.through)
 def chair_bed_table_m2m_chng_update_related_rooms(sender, instance, pk_set, action, **kwargs):
-    logger.info(msg="; chair_bed_table_m2m_chng_update_related_rooms - " +
-                "rooms pk_set: " + str(pk_set) + ", action: " + action + ", class - " + instance.__class__.__name__)
+    logger.info(
+        msg="; chair_bed_table_m2m_chng_update_related_rooms - rooms pk_set: "
+        + str(pk_set)
+        + ", action: "
+        + action
+        + ", class - "
+        + instance.__class__.__name__
+    )
     if not _check_item_is_furniture(instance):
         return
-    if action != 'post_add' and action != 'post_remove':
+    if action != "post_add" and action != "post_remove":
         return
     for room_id in pk_set:
-        _furniture_update_room_related_data(
-            room_id, instance.__class__.__name__)
+        _furniture_update_room_related_data(room_id, instance.__class__.__name__)
