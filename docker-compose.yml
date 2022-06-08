@@ -38,11 +38,6 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app
-    # command: >
-    #   sh -c "python3 manage.py makemigrations &&
-    #          python3 manage.py migrate &&
-    #          python3 initial_db_fill.py &&
-    #          python3 manage.py runserver 0.0.0.0:8000"
     command: >
       sh -c "python3 manage.py makemigrations &&
              python3 manage.py migrate &&
