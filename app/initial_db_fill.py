@@ -7,7 +7,7 @@ from model_bakery import baker
 from rooms.models import (Bed, Chair, Decoration, Door, Room,
                           RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
                           Window, WindowFittings)
-from rooms.signals import create_room_with_related_objs
+from rooms.utils import create_room_with_related_objs
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 django.setup()
