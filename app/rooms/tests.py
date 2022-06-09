@@ -7,15 +7,9 @@ from django.apps import apps
 from django.db.models import Q
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient
 
-from rooms.models import (
-    Door,
-    Room,
-    RoomsRelatedObjectsMaterializedView,
-    RoomWithRelatedObjsRebuildInApp,
-    WindowFittings,
-)
+from rooms.models import Door, Room
 
 logger = logging.getLogger(__name__)
 
@@ -155,55 +149,66 @@ def test_furniture_rooms_set_add_reflected(furniture_class, room_model):
     assert item_in_room_instance_found
 
 
-class APITests(APITestCase):
-    def test_window_fittings_get(self):
-        pks = WindowFittings.objects.values_list("pk", flat=True)
-        random_pk = random.choice(pks)
-        url = reverse("window_fittings-list") + str(random_pk) + "/"
-        response = self.client.get(url, format="json")
-        assert response.status_code == status.HTTP_200_OK
-        assert "windows" in response.data.keys()
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "model_name,model_url",
+    [
+        ("Door", "doors"),
+        ("Room", "rooms_native"),
+        ("Window", "windows"),
+        ("WindowFittings", "window_fittings"),
+        ("Chair", "chairs"),
+        ("Bed", "beds"),
+        ("Table", "tables"),
+    ],
+)
+def test_common_info_models_api_get(model_name, model_url):
+    client = APIClient()
+    item = _get_random_item_of_class(model_name)
+    url = reverse(model_url + "-list") + str(item.pk) + "/"
+    response = client.get(url, format="json")
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["name"] == item.name
+    assert "width" in response.data.keys()
+    assert "length" in response.data.keys()
+    assert "height" in response.data.keys()
 
-    def _get_wf_name_from_response_data(self, response, window_pk, wf_pk):
-        window_filtered = [obj for obj in response.data["windows"] if obj["id"] == window_pk]
-        wf_filtered = [obj for obj in window_filtered[0]["fittings"] if obj["id"] == wf_pk]
-        return wf_filtered[0]["name"]
 
-    def test_window_fittings_change_reflected_in_all_room_models(self):
-        """
-        Integration test. Modify the name of the WindowFittings instance using PATCH call
-        to its API url. Ensure this change is reflected in related rooms -
-        PostgreSQL materialized view and solution V2.
-        Obtain the data for checks using GET calls to the URLs of the room models.
-        """
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "room_model_name,room_model_url",
+    [("RoomsRelatedObjectsMaterializedView", "rooms_mat_view"), ("RoomWithRelatedObjsRebuildInApp", "rooms_v2")],
+)
+def test_window_fittings_change_reflected_in_all_room_models(room_model_name, room_model_url):
+    """
+    Integration test. Modify the name of the WindowFittings instance using PATCH call
+    to its API URL. Ensure this change is reflected in related rooms -
+    PostgreSQL materialized view and solution V2.
+    Obtain the data for checks using GET calls to the URLs of the room models.
+    """
 
-        # arrange
-        wf = _get_random_item_of_class("WindowFittings")
-        window = wf.windows.first()
-        room = window.room
-        room_view = RoomsRelatedObjectsMaterializedView.objects.get(pk=room.pk)
-        room_v2 = RoomWithRelatedObjsRebuildInApp.objects.get(pk=room.pk)
-        url = reverse("window_fittings-list") + str(wf.pk) + "/"
-        letters = string.ascii_letters
-        new_wf_name = "".join(random.choice(letters) for i in range(10))
-        data = {"name": new_wf_name}
+    # arrange
+    wf = _get_random_item_of_class("WindowFittings")
+    window = wf.windows.first()
+    room = window.room
+    room_model = apps.get_model("rooms", room_model_name)
+    room_instance = room_model.objects.get(pk=room.pk)
+    url = reverse("window_fittings-list") + str(wf.pk) + "/"
+    letters = string.ascii_letters
+    new_wf_name = "".join(random.choice(letters) for i in range(10))
+    data = {"name": new_wf_name}
+    client = APIClient()
 
-        # act
-        self.client.patch(url, data=data, format="json")
-        room_view.refresh_from_db()
-        room_v2.refresh_from_db()
+    # act
+    response = client.patch(url, data=data, format="json")
+    print(f"{response.status_code=}")
+    room_instance.refresh_from_db()
 
-        # assertions
-        for room_obj in [room_view, room_v2]:
-            found_fitting, found_name = _search_fitting_in_room_view_or_v2(wf.id, room_obj)
-            assert found_fitting
-            assert found_name == new_wf_name
-        url_view = reverse("rooms_mat_view-list") + str(room.pk) + "/"
-        url_v2 = reverse("rooms_v2-list") + str(room.pk) + "/"
-        response_view = self.client.get(url_view, format="json")
-        assert response_view.status_code == status.HTTP_200_OK
-        response_v2 = self.client.get(url_v2, format="json")
-        assert response_v2.status_code == status.HTTP_200_OK
-        for response_obj in [response_view, response_v2]:
-            wf_name_obtained = self._get_wf_name_from_response_data(response_obj, window.pk, wf.pk)
-            assert wf_name_obtained == new_wf_name
+    # assertions
+    url = reverse(room_model_url + "-list") + str(room.pk) + "/"
+    response = client.get(url, format="json")
+    assert response.status_code == status.HTTP_200_OK
+    window_filtered = [obj for obj in response.data["windows"] if obj["id"] == window.pk]
+    wf_filtered = [obj for obj in window_filtered[0]["fittings"] if obj["id"] == wf.pk]
+    wf_name_obtained = wf_filtered[0]["name"]
+    assert wf_name_obtained == new_wf_name
