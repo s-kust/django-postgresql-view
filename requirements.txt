@@ -1,4 +1,5 @@
 django
+django-pgtrigger
 model-bakery
 psycopg2-binary
 djangorestframework

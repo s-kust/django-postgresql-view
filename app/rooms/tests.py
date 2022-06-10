@@ -141,8 +141,7 @@ def test_furniture_rooms_set_add_reflected(furniture_class, room_model):
     model = apps.get_model("rooms", room_model)
     room_model_instance = model.objects.get(pk=room.id)
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)
-    # before furnuture item addition to the set, just in case
-    assert not item_in_room_instance_found
+    assert not item_in_room_instance_found  # before furnuture item addition to the set, just in case
     item.rooms.add(room)
     room_model_instance.refresh_from_db()
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)

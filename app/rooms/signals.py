@@ -1,17 +1,21 @@
 import logging
+from typing import Union
 
+from django.apps import apps
 from django.db import connection
 from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 
 from rooms.models import (Bed, Chair, Decoration, Door, Room,
-                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
-                          Window, WindowFittings)
+                          RoomWithRelatedObjsRebuildInApp,
+                          RoomWithRelatedObjsV3, Souvenir, Table, Window,
+                          WindowFittings)
 from rooms.serializers import (DecorationSerializer, DoorSerializer,
                                RoomSerializer)
 from rooms.utils import create_room_with_related_objs
 
 logger = logging.getLogger(__name__)
+
 
 #############################################
 # Approach 1 - PostgreSQL Materialized View #
@@ -48,20 +52,23 @@ def update_view_rooms_related_objects(sender, **kwargs):
 ################################################
 
 
-def get_or_create_room_with_related_objs(room_id: int) -> None:
+def get_or_create_room_with_related_objs(
+    room_id: int, model_name: str = "RoomWithRelatedObjsRebuildInApp"
+) -> Union[RoomWithRelatedObjsV3, RoomWithRelatedObjsRebuildInApp, None]:
     """
-    If RoomWithRelatedObjsRebuildInApp object does not exist for a given room ID,
+    If Room with related objects V2 (signals) or V3 (triggers) object does not exist for a given room ID,
     call the create_room_with_related_objs function to create it from scratch
     and build all its fields that store JSON data about related objects.
     Otherwise, return the found object, so the calling functiion will rebuild
     only the fields that have changed, and not all of them.
     """
-    room_with_related_objs = RoomWithRelatedObjsRebuildInApp.objects.filter(id=room_id).first()
+    model = apps.get_model("rooms", model_name)
+    room_with_related_objs = model.objects.filter(id=room_id).first()
     if room_with_related_objs:
-        logger.info(msg="; RoomWithRelatedObjsRebuildInApp with ID " + str(room_id) + " already exists")
+        logger.info(msg="; Room with related objects with ID " + str(room_id) + " already exists")
         return room_with_related_objs
     else:
-        create_room_with_related_objs(room_id)
+        create_room_with_related_objs(room_id, model_name)
         return None
 
 
@@ -83,13 +90,13 @@ def room_changes_update_related_room(sender, instance, **kwargs):
         room_with_related_objs.save()
 
 
-def _window_changed_process_related_rooms(window_instance):
+def _window_changed_process_related_rooms(window_instance, model_name: str = "RoomWithRelatedObjsRebuildInApp"):
     logger.info(msg="; _window_changed_process_related_rooms:")
     logger.info(msg="; window ID:" + str(window_instance.id))
     # every window has only one room, so simplified processing
     room = window_instance.room
     logger.info(msg="; room ID:" + str(room.id))
-    room_with_related_objs = get_or_create_room_with_related_objs(room.id)
+    room_with_related_objs = get_or_create_room_with_related_objs(room.id, model_name)
     if room_with_related_objs:
         source_room_data = RoomSerializer(room).data
         room_with_related_objs.windows = source_room_data["windows"]
@@ -103,7 +110,8 @@ def windows_fitting_m2m_changed_update_related_rooms(sender, pk_set, action, **k
         return
     for window_id in pk_set:
         window_by_id = Window.objects.filter(id=window_id).first()
-        _window_changed_process_related_rooms(window_by_id)
+        _window_changed_process_related_rooms(window_by_id, "RoomWithRelatedObjsRebuildInApp")
+        _window_changed_process_related_rooms(window_by_id, "RoomWithRelatedObjsV3")
 
 
 @receiver(post_save, sender=WindowFittings)
@@ -133,11 +141,11 @@ def door_changed_update_related_rooms(sender, instance, **kwargs):
         room_with_related_objs.save()
 
 
-def _decoration_changed_process_related_rooms(decoration_instance):
+def _decoration_changed_process_related_rooms(decoration_instance, model_name: str = "RoomWithRelatedObjsRebuildInApp"):
     decoration_data = DecorationSerializer(decoration_instance).data
     rooms = Room.objects.filter(decoration=decoration_instance)
     for room in rooms:
-        room_with_related_objs = get_or_create_room_with_related_objs(room.id)
+        room_with_related_objs = get_or_create_room_with_related_objs(room.id, model_name)
         if not room_with_related_objs:
             continue
         room_with_related_objs.decoration = decoration_data
@@ -147,7 +155,7 @@ def _decoration_changed_process_related_rooms(decoration_instance):
 @receiver(post_save, sender=Souvenir)
 def souvenir_changed_update_related_rooms(sender, instance, **kwargs):
     logger.info(msg="; souvenir_changed_update_related_rooms: " + str(instance.id))
-    decorations_related = Decoration.objects.filter(souvenirs=instance)
+    decorations_related = Decoration.objects.filter(souvenirs__in=[instance.pk])
     for decoration_instance in decorations_related:
         _decoration_changed_process_related_rooms(decoration_instance)
 
@@ -162,7 +170,8 @@ def decoration_changed_update_related_rooms(sender, instance, **kwargs):
 def decoration_souvenir_m2m_changed_update_related_rooms(sender, instance, action, **kwargs):
     logger.info(msg="; decoration_souvenir_m2m_changed_update_related_rooms - action: " + action)
     if action == "post_add" or action == "post_remove":
-        _decoration_changed_process_related_rooms(instance)
+        _decoration_changed_process_related_rooms(instance, "RoomWithRelatedObjsRebuildInApp")
+        _decoration_changed_process_related_rooms(instance, "RoomWithRelatedObjsV3")
 
 
 def _check_item_is_furniture(item):
@@ -175,8 +184,8 @@ def _check_item_is_furniture(item):
     return True
 
 
-def _furniture_update_room_related_data(room_id, class_name):
-    room_with_related_data = get_or_create_room_with_related_objs(room_id)
+def _furniture_update_room_related_data(room_id, class_name, model_name: str = "RoomWithRelatedObjsRebuildInApp"):
+    room_with_related_data = get_or_create_room_with_related_objs(room_id, model_name)
     if not room_with_related_data:
         # room_with_related_data was not obtained
         # but created from scratch
@@ -229,4 +238,5 @@ def chair_bed_table_m2m_chng_update_related_rooms(sender, instance, pk_set, acti
     if action != "post_add" and action != "post_remove":
         return
     for room_id in pk_set:
-        _furniture_update_room_related_data(room_id, instance.__class__.__name__)
+        _furniture_update_room_related_data(room_id, instance.__class__.__name__, "RoomWithRelatedObjsRebuildInApp")
+        _furniture_update_room_related_data(room_id, instance.__class__.__name__, "RoomWithRelatedObjsV3")

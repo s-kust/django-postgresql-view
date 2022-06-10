@@ -1,14 +1,15 @@
-from django.shortcuts import render
 from rest_framework import viewsets
 
 from rooms.models import (Bed, Chair, Decoration, Door, Room,
                           RoomsRelatedObjectsMaterializedView,
-                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
-                          Window, WindowFittings)
+                          RoomWithRelatedObjsRebuildInApp,
+                          RoomWithRelatedObjsV3, Souvenir, Table, Window,
+                          WindowFittings)
 from rooms.serializers import (BedSerializer, ChairSerializer,
                                DecorationSerializer, DoorSerializer,
                                RoomSerializer, RoomsRelatedObjectsSerializer,
-                               RoomsRelatedV2Serializer, SouvenirSerializer,
+                               RoomsRelatedV2Serializer,
+                               RoomsRelatedV3Serializer, SouvenirSerializer,
                                TableSerializer, WindowFittingsSerializer,
                                WindowSerializer)
 
@@ -30,6 +31,12 @@ class RoomsRelatedObjectsViewSet(viewsets.ReadOnlyModelViewSet):
 class RoomsRelatedV2ViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = RoomsRelatedV2Serializer
     queryset = RoomWithRelatedObjsRebuildInApp.objects.all()
+
+
+class RoomsRelatedV3ViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = RoomsRelatedV3Serializer
+    queryset = RoomWithRelatedObjsV3.objects.all()
+
 
 # The following classes are to test
 # if the post_save signal works,

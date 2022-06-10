@@ -1,13 +1,15 @@
 import logging
 
-from rooms.models import Room, RoomWithRelatedObjsRebuildInApp
+from django.apps import apps
+
+from rooms.models import Room
 from rooms.serializers import (DecorationSerializer, DoorSerializer,
                                RoomSerializer)
 
 logger = logging.getLogger(__name__)
 
 
-def create_room_with_related_objs(room_id: int) -> None:
+def create_room_with_related_objs(room_id: int, model_name: str = "RoomWithRelatedObjsRebuildInApp") -> None:
     logger.info(msg="; create_room_with_related_objs: " + str(room_id))
 
     # Make sure the given room ID is valid
@@ -20,7 +22,8 @@ def create_room_with_related_objs(room_id: int) -> None:
     # about related objects is performed by the RoomSerializer,
     # which is called here.
     source_room_data = RoomSerializer(source_room).data
-    room_with_related_objs = RoomWithRelatedObjsRebuildInApp(id=room_id)
+    model = apps.get_model("rooms", model_name)
+    room_with_related_objs = model(id=room_id)
 
     # add door data
     door_data = DoorSerializer(source_room.door).data
