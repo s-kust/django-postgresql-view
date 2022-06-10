@@ -1,22 +1,13 @@
 import random
 
 from django.core.management.base import BaseCommand
-from model_bakery import baker
 from django.db import connection
+from model_bakery import baker
 
-from rooms.models import (
-    Bed,
-    Chair,
-    Decoration,
-    Door,
-    Room,
-    RoomWithRelatedObjsRebuildInApp,
-    Souvenir,
-    Table,
-    Window,
-    WindowFittings,
-    RoomWithRelatedObjsV3,
-)
+from rooms.models import (Bed, Chair, Decoration, Door, Room,
+                          RoomWithRelatedObjsRebuildInApp,
+                          RoomWithRelatedObjsV3, Souvenir, Table, Window,
+                          WindowFittings)
 from rooms.utils import create_room_with_related_objs
 
 
