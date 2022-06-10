@@ -23,7 +23,9 @@ def _get_random_item_of_class(model_class_name):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp"])
+@pytest.mark.parametrize(
+    "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
+)
 def test_door_change_reflected_in_its_rooms(room_model):
     pks = Door.objects.exclude(rooms=None).values_list("pk", flat=True)
     random_pk = random.choice(pks)
@@ -61,7 +63,9 @@ def _search_fitting_in_room_view_or_v2(fitting_id, room_with_related_data):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp"])
+@pytest.mark.parametrize(
+    "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
+)
 def test_window_fitting_change_reflected_in_its_rooms(room_model):
     # fittings have several windows,
     # every window has one room
@@ -82,7 +86,9 @@ def test_window_fitting_change_reflected_in_its_rooms(room_model):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp"])
+@pytest.mark.parametrize(
+    "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
+)
 def test_room_change_reflected_in_its_related_models(room_model):
     letters = string.ascii_letters
     room = _get_random_item_of_class("Room")
@@ -115,7 +121,9 @@ def _check_item_in_room_view_and_v2(item_id, furniture_class_name, room_model_ob
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("furniture_class", ["Bed", "Chair", "Table"])
-@pytest.mark.parametrize("room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp"])
+@pytest.mark.parametrize(
+    "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
+)
 def test_furniture_rooms_set_remove_reflected(furniture_class, room_model):
     item = _get_random_item_of_class(furniture_class)
     model = apps.get_model("rooms", room_model)
@@ -132,7 +140,9 @@ def test_furniture_rooms_set_remove_reflected(furniture_class, room_model):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("furniture_class", ["Bed", "Chair", "Table"])
-@pytest.mark.parametrize("room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp"])
+@pytest.mark.parametrize(
+    "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
+)
 def test_furniture_rooms_set_add_reflected(furniture_class, room_model):
     item = _get_random_item_of_class(furniture_class)
     pks = Room.objects.filter(~Q(id__in=[o.id for o in item.rooms.all()])).values_list("pk", flat=True)
@@ -176,13 +186,17 @@ def test_common_info_models_api_get(model_name, model_url):
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     "room_model_name,room_model_url",
-    [("RoomsRelatedObjectsMaterializedView", "rooms_mat_view"), ("RoomWithRelatedObjsRebuildInApp", "rooms_v2")],
+    [
+        ("RoomsRelatedObjectsMaterializedView", "rooms_mat_view"),
+        ("RoomWithRelatedObjsRebuildInApp", "rooms_v2"),
+        ("RoomWithRelatedObjsV3", "rooms_v3"),
+    ],
 )
 def test_window_fittings_change_reflected_in_all_room_models(room_model_name, room_model_url):
     """
-    Integration test. Modify the name of the WindowFittings instance using PATCH call
+    Modify the name of the WindowFittings instance using PATCH call
     to its API URL. Ensure this change is reflected in related rooms -
-    PostgreSQL materialized view and solution V2.
+    PostgreSQL materialized view, solutions V2 (signals) and V3 (triggers).
     Obtain the data for checks using GET calls to the URLs of the room models.
     """
 
@@ -192,22 +206,72 @@ def test_window_fittings_change_reflected_in_all_room_models(room_model_name, ro
     room = window.room
     room_model = apps.get_model("rooms", room_model_name)
     room_instance = room_model.objects.get(pk=room.pk)
-    url = reverse("window_fittings-list") + str(wf.pk) + "/"
+    url_for_patch_request = reverse("window_fittings-list") + str(wf.pk) + "/"
     letters = string.ascii_letters
     new_wf_name = "".join(random.choice(letters) for i in range(10))
     data = {"name": new_wf_name}
     client = APIClient()
 
     # act
-    response = client.patch(url, data=data, format="json")
-    print(f"{response.status_code=}")
+    response = client.patch(url_for_patch_request, data=data, format="json")
     room_instance.refresh_from_db()
 
     # assertions
-    url = reverse(room_model_url + "-list") + str(room.pk) + "/"
-    response = client.get(url, format="json")
+    url_for_get_request = reverse(room_model_url + "-list") + str(room.pk) + "/"
+    response = client.get(url_for_get_request, format="json")
     assert response.status_code == status.HTTP_200_OK
     window_filtered = [obj for obj in response.data["windows"] if obj["id"] == window.pk]
     wf_filtered = [obj for obj in window_filtered[0]["fittings"] if obj["id"] == wf.pk]
     wf_name_obtained = wf_filtered[0]["name"]
     assert wf_name_obtained == new_wf_name
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "room_model_name,room_model_url",
+    [
+        ("RoomsRelatedObjectsMaterializedView", "rooms_mat_view"),
+        ("RoomWithRelatedObjsRebuildInApp", "rooms_v2"),
+        ("RoomWithRelatedObjsV3", "rooms_v3"),
+    ],
+)
+@pytest.mark.parametrize(
+    "furniture_model_name,furniture_model_url,furniture_related_name",
+    [
+        ("Chair", "chairs", "chairs"),
+        ("Bed", "beds", "beds"),
+        ("Table", "tables", "tables"),
+    ],
+)
+def test_furniture_change_reflected_in_all_room_models(
+    room_model_name, room_model_url, furniture_model_name, furniture_model_url, furniture_related_name
+):
+    """
+    Modify the name of the furniture instance using PATCH call
+    to its API URL. Ensure this change is reflected in related rooms -
+    PostgreSQL materialized view, solutions V2 (signals) and V3 (triggers).
+    Obtain the data for checks using GET calls to the URLs of the room models.
+    """
+
+    # arrange
+    furniture_item = _get_random_item_of_class(furniture_model_name)
+    room = furniture_item.rooms.first()
+    room_model = apps.get_model("rooms", room_model_name)
+    room_instance = room_model.objects.get(pk=room.pk)
+    url_for_patch_request = reverse(furniture_model_url + "-list") + str(furniture_item.pk) + "/"
+    letters = string.ascii_letters
+    new_furniture_name = "".join(random.choice(letters) for i in range(10))
+    data = {"name": new_furniture_name}
+    client = APIClient()
+
+    # act
+    response = client.patch(url_for_patch_request, data=data, format="json")
+    room_instance.refresh_from_db()
+
+    # assertions
+    url_for_get_request = reverse(room_model_url + "-list") + str(room.pk) + "/"
+    response = client.get(url_for_get_request, format="json")
+    assert response.status_code == status.HTTP_200_OK
+    furniture_filtered = [obj for obj in response.data[furniture_related_name] if obj["id"] == furniture_item.pk]
+    furniture_name_obtained = furniture_filtered[0]["name"]
+    assert furniture_name_obtained == new_furniture_name
