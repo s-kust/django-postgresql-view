@@ -2,10 +2,21 @@ import random
 
 from django.core.management.base import BaseCommand
 from model_bakery import baker
+from django.db import connection
 
-from rooms.models import (Bed, Chair, Decoration, Door, Room,
-                          RoomWithRelatedObjsRebuildInApp, Souvenir, Table,
-                          Window, WindowFittings)
+from rooms.models import (
+    Bed,
+    Chair,
+    Decoration,
+    Door,
+    Room,
+    RoomWithRelatedObjsRebuildInApp,
+    Souvenir,
+    Table,
+    Window,
+    WindowFittings,
+    RoomWithRelatedObjsV3,
+)
 from rooms.utils import create_room_with_related_objs
 
 
@@ -38,9 +49,29 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.SUCCESS("Created RoomWithRelatedObjsRebuildInApp %s of %s - OK" % (i + 1, items_quantity))
             )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO rooms_roomwithrelatedobjsv3
+                                SELECT *
+                                FROM rooms_related_objects
+                                ON CONFLICT (ID)
+                                DO UPDATE
+                                SET door = EXCLUDED.door,
+                                    decoration = EXCLUDED.decoration,
+                                    windows = EXCLUDED.windows,
+                                    name = EXCLUDED.name,
+                                    width = EXCLUDED.width,
+                                    length = EXCLUDED.length,
+                                    height = EXCLUDED.height,
+                                    type = EXCLUDED.type,
+                                    beds = EXCLUDED.beds,
+                                    chairs = EXCLUDED.chairs,
+                                    tables = EXCLUDED.tables;"""
+            )
 
     def _remove_all_items_from_db(self):
         RoomWithRelatedObjsRebuildInApp.objects.all().delete()
+        RoomWithRelatedObjsV3.objects.all().delete()
         Room.objects.all().delete()
         Door.objects.all().delete()
         Souvenir.objects.all().delete()
