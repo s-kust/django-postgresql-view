@@ -100,6 +100,7 @@ LOGGING = {
             "class": "logging.FileHandler",
             "filename": "logs_all_here.log",
             "formatter": "simple",
+            'mode': 'w',
         },
     },
     "loggers": {
