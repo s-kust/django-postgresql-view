@@ -1,22 +1,30 @@
 import argparse
+import asyncio
 import io
 import random
 from pathlib import Path
 from typing import List
 
+import aiohttp
 import pandas as pd
 import psycopg2
-import requests
+from aiohttp import ClientSession
 
 LOG_FILE_PATH = Path(__file__).parent.parent / "app/logs_all_here.log"
+DB_CONNECTION_DATA = (
+    "dbname='postgres' user='postgres' host='localhost' password='postgres'"
+)
+URL_NATIVE_STUB = "http://localhost:8000/rooms_native/"
+URL_MAT_VIEW_STUB = "http://localhost:8000/rooms_mat_view/"
+URL_SIGNALS_STUB = "http://localhost:8000/rooms_v2/"
+URL_TRIGGERS_STUB = "http://localhost:8000/rooms_v3/"
 
 
 def _obtain_rooms_ids() -> List:
-    db_connection_data = "dbname='postgres' user='postgres' host='localhost' password='postgres'"
-    conn = psycopg2.connect(db_connection_data)
+    conn = psycopg2.connect(DB_CONNECTION_DATA)
     db_cursor = conn.cursor()
-    s = "SELECT id FROM public.rooms_room"
-    db_cursor.execute(s)
+    query_str = "SELECT id FROM public.rooms_room"
+    db_cursor.execute(query_str)
     ids_obtained = db_cursor.fetchall()
     conn.close()
     room_ids = []
@@ -26,16 +34,28 @@ def _obtain_rooms_ids() -> List:
     return room_ids
 
 
-def _make_requests_to_all_rooms(
+async def _make_get_request_to_url(session: ClientSession, url: str) -> None:
+    async with session.get(url):
+        pass
+
+
+async def _make_requests_to_all_rooms(
     rooms_ids: List, iterations_count: int
 ) -> None:
-    for i in range(iterations_count):
-        room_id = random.choice(rooms_ids)
-        requests.get("http://localhost:8000/rooms_native/" + str(room_id))
-        requests.get("http://localhost:8000/rooms_mat_view/" + str(room_id))
-        requests.get("http://localhost:8000/rooms_v2/" + str(room_id))
-        requests.get("http://localhost:8000/rooms_v3/" + str(room_id))
-        print("Request iteration", i + 1, "of", iterations_count)
+    async with aiohttp.ClientSession() as session:
+        for i in range(iterations_count):
+            room_id = random.choice(rooms_ids)
+            all_urls = [
+                URL_NATIVE_STUB + str(room_id),
+                URL_MAT_VIEW_STUB + str(room_id),
+                URL_SIGNALS_STUB + str(room_id),
+                URL_TRIGGERS_STUB + str(room_id),
+            ]
+            request_tasks = [
+                _make_get_request_to_url(session, url) for url in all_urls
+            ]
+            await asyncio.gather(*request_tasks)
+            print("Request iteration", i + 1, "of", iterations_count)
 
 
 def _log_lines_stage_1_determine_type() -> List:
@@ -96,6 +116,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     room_ids = _obtain_rooms_ids()
     print("Start making requests to log time...")
-    _make_requests_to_all_rooms(room_ids, args.count)
+    asyncio.run(_make_requests_to_all_rooms(room_ids, args.count))
     log_lines_with_types = _log_lines_stage_1_determine_type()
     _log_lines_stage_2_get_avg_time(log_lines_with_types)

@@ -3,7 +3,6 @@ django-pgtrigger
 model-bakery
 psycopg2-binary
 djangorestframework
-requests
 pytest-django
 pytest-xdist
 pytest-random-order
