@@ -440,6 +440,7 @@ This project currently contains several solutions to the data denormalization ta
 1. PostgreSQL materialized view.
 1. Django signals `post_save` and `m2m_changed`.
 1. PostgreSQL triggers.
+
 You can compare the effectiveness of all these solutions by running just one Python script.
 
 The `supplementary_scripts` folder contains the file `compare_requests_time.py`. This script works as follows:
