@@ -406,7 +406,7 @@ You can create the PostgreSQL materialized view directly in the database by exec
 
 To use the newly created model, we have to build its serializer and view. Also, register the view in the `urls.py` file. See the code of the classes `RoomsRelatedObjectsSerializer` and `RoomsRelatedObjectsViewSet`. There is nothing special about them. Note that the `RoomsRelatedObjectsViewSet` class is a `ReadOnlyModelViewSet` class inheritor, and not a `ModelViewSet` inheritor.
 
-## Testing the Optimization Effect
+## Testing the Optimization Effect Manually
 You can get the rooms' data using the PostgreSQL materialized view at the address `localhost:8000/rooms_mat_view/`. You can see the complete data about all rooms at once. Also, try to request data about individual rooms using their IDs. Make sure the data matches the one at the address `localhost:8000/rooms/`. 
 
 The `rooms` app has a simple middleware that logs all requests. It lives in the `app/rooms/middleware/log_execution_time.py` file. 
@@ -435,20 +435,25 @@ class ExecutionTimeLogMiddleware:
 
 The logs contain the paths as well as the execution time. They are in a file `logs_all_here.log`.
 
-The `supplementary_scripts` folder contains the file `make_requests_to_log_time.py`. This script works as follows:
+## Comparing the Average Request Execution Time
+This project currently contains several solutions to the data denormalization task:
+1. PostgreSQL materialized view.
+1. Django signals `post_save` and `m2m_changed`.
+1. PostgreSQL triggers.
+You can compare the effectiveness of all these solutions by running just one Python script.
+
+The `supplementary_scripts` folder contains the file `compare_requests_time.py`. This script works as follows:
 1. It connects to the database and gets a list of all the rooms IDs.
-1. On each iteration of the loop, using that list, it makes a pair of requests to random rooms in the usual way and through the PostgreSQL materialized view. The logs of these requests are stored in a file.
-1. You can change the number of request pairs by modifying the `requests_count` variable. Its default value is 20.
+1. On each iteration of the loop, using that list, it makes requests to random rooms in the usual way and through all the solutions listed above. The logs of these requests are stored in the `/app/logs_all_here.log` file.
+1. After performing the desired number of rooms data requests, the script splits the entries in the log file into several groups and calculates the average execution time for each of them. To do that, it uses the `pandas` library.
 
-Run the `make_requests_to_log_time.py` script. Then find the `logs_all_here.log` file and copy it to the `supplementary_scripts` folder. It is advisable to remove lines from the log file that are not relevant. 
-
-After that, run the second script `process_logs.py`. Pass the name of the log file as a parameter. This script splits the entries in the log file into two groups and calculates the average execution time for each of them. As an output, you will hopefully get something like the following.
+Run the `compare_requests_time.py` script. You can change the number of request iterations by modifying the `--count` command line parameter. Its default value is 20. As an output, you will hopefully get something like the following.
 
 ![log processing output](/misc/log_processing_output.png)
 
-When using the PostgreSQL materialized view, the mean query execution time decreases significantly. In real-world conditions, the difference is even more substantial.
+When using the optimized solutions, the mean query execution time decreases significantly. In real-world conditions, the difference is even more substantial. It grows exponentially as the number of rooms instances in the database increases.
 
-## Alternative Solution
+## PostgreSQL Materialized View and Its Alternatives
 
 The PostgreSQL materialized view solution has a serious problem. Every time it receives a `post_save` or `m2m_changed` signal, it rebuilds *all* the fields for all rooms. It is redundant. 
 

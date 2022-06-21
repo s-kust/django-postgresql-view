@@ -53,7 +53,7 @@ def _log_lines_stage_1_determine_type() -> List:
             lines_processed.append(line)
             continue
         if end.startswith("native/"):
-            line = line + "; MAIN_ROOM"
+            line = line + "; NATIVE_ROOM"
             lines_processed.append(line)
             continue
         if end.startswith("v2/"):
