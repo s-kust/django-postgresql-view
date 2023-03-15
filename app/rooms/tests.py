@@ -8,15 +8,17 @@ from django.db.models import Q
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-
-from rooms.models import Door, Room
+from rooms.models import Room
 
 logger = logging.getLogger(__name__)
 
 
 def _get_random_item_of_class(model_class_name):
     model = apps.get_model("rooms", model_class_name)
-    pks = model.objects.values_list("pk", flat=True)
+    if hasattr(model, 'rooms'):
+        pks = model.objects.exclude(rooms=None).values_list("pk", flat=True)
+    else:
+        pks = model.objects.values_list("pk", flat=True)
     random_pk = random.choice(pks)
     instance = model.objects.get(pk=random_pk)
     return instance
@@ -27,21 +29,30 @@ def _get_random_item_of_class(model_class_name):
     "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
 )
 def test_door_change_reflected_in_its_rooms(room_model):
-    pks = Door.objects.exclude(rooms=None).values_list("pk", flat=True)
-    random_pk = random.choice(pks)
-    door_instance = Door.objects.get(pk=random_pk)
-    letters = string.ascii_letters
+    """
+    Every room has one door type (ForeignKey). 
+    Every Door (door type) may be installed in many rooms.
+    Ensure that Door (door type) changes are reflected in all its rooms.
+    """
+    # NOTE Door model is about door types, not door instances
+
+    door_instance = _get_random_item_of_class('Door')
     model = apps.get_model("rooms", room_model)
+
+    # check before name change, just in case
     for room in door_instance.rooms.all():
         room_model_instance = model.objects.get(pk=room.id)
-        # before name change, just in case
         assert door_instance.name == room_model_instance.door["name"]
+    
+    # change door type's name
+    letters = string.ascii_letters
     door_instance.name = "".join(random.choice(letters) for i in range(10))
     door_instance.save()
+    
+    # check after change
     for room in door_instance.rooms.all():
         room_model_instance = model.objects.get(pk=room.id)
         room_model_instance.refresh_from_db()
-        # after name change
         assert room_model_instance.door["name"] == door_instance.name
 
 
@@ -67,17 +78,25 @@ def _search_fitting_in_room_view_or_v2(fitting_id, room_with_related_data):
     "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
 )
 def test_window_fitting_change_reflected_in_its_rooms(room_model):
-    # fittings have several windows,
-    # every window has one room
+    """
+    Rooms are related with WindowFittings through Windows.
+    Ensure that window fitting change is reflected in all its rooms.
+    """
+    # NOTE fittings have several windows, every window has one room
+
+    # get random window fitting and change it
     fitting = _get_random_item_of_class("WindowFittings")
     model = apps.get_model("rooms", room_model)
     letters = string.ascii_letters
     new_wf_name = "".join(random.choice(letters) for i in range(10))
     fitting.name = new_wf_name
     fitting.save()
+    
+    # get all rooms of the changed Window Fitting through its windows.
     rooms_set = set()
     for window in fitting.windows.all():
         rooms_set.add(window.room)
+        
     for room in rooms_set:
         room_model_instance = model.objects.get(pk=room.id)
         found_fitting_in_view, found_name_view = _search_fitting_in_room_view_or_v2(fitting.id, room_model_instance)
@@ -90,15 +109,28 @@ def test_window_fitting_change_reflected_in_its_rooms(room_model):
     "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
 )
 def test_room_change_reflected_in_its_related_models(room_model):
-    letters = string.ascii_letters
+    """
+    Rooms have many related objects. Often, users need to get detailed information about a room 
+    and the properties of its associated objects. 
+    
+    To avoid executing slow and heavy JOIN queries, their results are prepared in advance 
+    and stored in RoomsRelatedObjectsMaterializedView, RoomWithRelatedObjsRebuildInApp, and RoomWithRelatedObjsV3.
+
+    Ensure that when we change the Room instance, these changes are reflected 
+    in PostgreSQL materialized view, solutions V2 (signals) and V3 (triggers).
+    """
     room = _get_random_item_of_class("Room")
     model = apps.get_model("rooms", room_model)
     room_model_instance = model.objects.get(pk=room.id)
-    # before name change, just in case
+    
+    # check before name change, just in case
     assert room.name == room_model_instance.name
+    
+    letters = string.ascii_letters
     new_room_name = "".join(random.choice(letters) for i in range(10))
     room.name = new_room_name
     room.save()
+    
     room_model_instance.refresh_from_db()
     assert room.name == room_model_instance.name == new_room_name
 
@@ -125,13 +157,22 @@ def _check_item_in_room_view_and_v2(item_id, furniture_class_name, room_model_ob
     "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
 )
 def test_furniture_rooms_set_remove_reflected(furniture_class, room_model):
+    """
+    The Bed, Chair, Table models are about furniture types, not instances.
+    Each type of furniture can be placed in one or more rooms.
+    Ensure that removing a type of furniture from a room works as expected.
+    It should be reflected not only in Room,
+    but also in PostgreSQL materialized view, solutions V2 (signals) and V3 (triggers).
+    """
     item = _get_random_item_of_class(furniture_class)
     model = apps.get_model("rooms", room_model)
     room = item.rooms.first()
     room_model_instance = model.objects.get(pk=room.id)
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)
-    # before furnuture item removal from set, just in case
+    
+    # check before furniture type removal from set, just in case
     assert item_in_room_instance_found
+    
     item.rooms.remove(room)
     room_model_instance.refresh_from_db()
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)
@@ -144,14 +185,25 @@ def test_furniture_rooms_set_remove_reflected(furniture_class, room_model):
     "room_model", ["RoomsRelatedObjectsMaterializedView", "RoomWithRelatedObjsRebuildInApp", "RoomWithRelatedObjsV3"]
 )
 def test_furniture_rooms_set_add_reflected(furniture_class, room_model):
-    item = _get_random_item_of_class(furniture_class)
+    """
+    The Bed, Chair, Table models are about furniture types, not instances.
+    Each type of furniture can be placed in one or more rooms.
+    Ensure that adding a type of furniture to the room works as expected.
+    It should be reflected not only in Room,
+    but also in PostgreSQL materialized view, solutions V2 (signals) and V3 (triggers).
+    """
+    # Get random Bed, Chair, or Table as well as a room that does NOT have this type of furniture.
+    item = _get_random_item_of_class(furniture_class)    
     pks = Room.objects.filter(~Q(id__in=[o.id for o in item.rooms.all()])).values_list("pk", flat=True)
     random_pk = random.choice(pks)
     room = Room.objects.get(pk=random_pk)
+    
     model = apps.get_model("rooms", room_model)
     room_model_instance = model.objects.get(pk=room.id)
+    # check before item addition to the set of the room's furniture, just in case
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)
-    assert not item_in_room_instance_found  # before furnuture item addition to the set, just in case
+    assert not item_in_room_instance_found  
+    
     item.rooms.add(room)
     room_model_instance.refresh_from_db()
     item_in_room_instance_found = _check_item_in_room_view_and_v2(item.id, furniture_class, room_model_instance)
@@ -172,6 +224,10 @@ def test_furniture_rooms_set_add_reflected(furniture_class, room_model):
     ],
 )
 def test_common_info_models_api_get(model_name, model_url):
+    """
+    Furniture types have their own URLs where you can get information about them. 
+    Ensure that the GET requests work as expected.
+    """
     client = APIClient()
     item = _get_random_item_of_class(model_name)
     url = reverse(model_url + "-list") + str(item.pk) + "/"

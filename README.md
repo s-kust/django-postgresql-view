@@ -1,8 +1,14 @@
 # Django PostgreSQL Materialized View Example
-Sometimes we have to denormalize the data in the database to avoid repeating costly JOIN operations, speed up the SELECT queries and reduce the load on the database engine. This repository shows three ways to solve the problem:
+The complex JOIN queries can exert a heavy load on the database engine and cause frustration to users due to their long processing times. The solution to this problem involves preparing the results of these queries in advance and storing them in the database. This repository showcases an implementation of such a solution for Django and PostgreSQL. 
+
+Here you can learn and practice three ways to solve the problem:
 1. PostgreSQL materialized view. See the files `/app/rooms/migrations/0004_roomsrelatedobjects.py` and `/app/rooms/models/room_related_view.py`. This solution is the simplest. Unfortunately, it has limitations that make it rarely suitable for practice.
 1. Django signals. See the file `/app/rooms/signals.py`. Most likely, in practice, you will use this solution.
 1. PostgreSQL triggers. They are slightly more efficient than Django signals but much more difficult to set up and maintain. See the examples in the `/app/rooms/models` directory. Also, take a look at the `django-pgtrigger` plugin.
+
+The proposed solution involves denormalizing data and consuming more disk space. Also, it leads to more complex and long-lasting INSERT, UPDATE, and DELETE queries. Nevertheless, it results in a significant acceleration of the execution of complex SELECT requests involving JOIN operations.
+
+In real-world workloads, SELECT queries far outnumber data modifications. As a result, the overall speed gain is substantial. Also, the database server can get by with cheaper hardware. Consequently, this approach is widely utilized in practical applications.
 
 ## How This Repository Can Help You
 
@@ -12,7 +18,7 @@ In this repository, you can find working examples of the following:
 1. Updating the instances that have nested serializers. You can explicitly write update methods in the serializer class. Or you can simply mark nested serializers as read-only. The `app/rooms/serializers.py` file contains examples of both approaches.
 1. Usage of the most generic `viewsets.ModelViewSet` to build views in Django REST framework fast and easy. 
 1. Advanced PostgreSQL SQL query with several Common Table Expressions and JSON functions. See the `migrations.RunSQL` code in the `app/rooms/migrations/0004_roomsrelatedobjects.py` file.
-1. PostgreSQL triggers to keep the data in different tables in sync. See the examples in the `/app/rooms/models` directory. The triggers are configured not inside the database but in the Django application layer. The `django-pgtrigger` plugin gives you such an opportunity. 
+1. PostgreSQL triggers to keep the data in different tables in sync. See numerous examples in the `/app/rooms/models` directory. The triggers are configured not inside the database but in the Django application layer. The `django-pgtrigger` plugin provides you with such an opportunity. 
 1. Usage of Django `post_save` and `m2m_changed` signals, see the `app/rooms/signals.py` file.
 1. Processing of the actions during the `m2m_changed` signal handling.
 1. Populating the Django database with fake generated data for testing. See the `app/rooms/management/commands/fill_db.py` file.
@@ -153,7 +159,9 @@ The test database contains 500 rooms and the same number of furniture items, as 
 
 ## Starting the system
 
-You can easily start the system using the `docker-compose up` command. After that, run the command `docker-compose run app sh -c "python manage.py fill_db 50"` to fill the database. Here 50 is the number of rooms and other items to create. After the command succeeds, you can play around with the API endpoints. Also, explore the database using `pgadmin`. It is located at the `localhost:8080` address. 
+You can easily start the system using the `docker-compose up` command. After that, run the command `docker-compose run app sh -c "python manage.py fill_db 50"` to fill the database. Here 50 is the number of rooms and other items to create. After the command succeeds, you can play around with the API endpoints. 
+
+In a separate terminal, you can run tests with the `docker-compose -f docker-compose.yml run app sh -c "pytest --random-order -s"` command. Also, explore the database using `pgadmin`. It is located at the `localhost:8080` address. 
 
 There are several nuances:
 1. The `pgadmin-data` directory must have owner and group 5050. Otherwise, `pgadmin` won't work. So, you'll have to run something like `sudo chown -R 5050:5050 ./pgadmin-data/`. 
