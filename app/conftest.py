@@ -24,6 +24,9 @@ def django_db_setup():
     settings.DATABASES['default']['NAME'] = 'the_copied_db'
     logger.info(msg="; Started creating test DB...")
     run_sql('DROP DATABASE IF EXISTS the_copied_db')
+    run_sql(
+            "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'postgres' AND pid <> pg_backend_pid()"
+        )
     run_sql('CREATE DATABASE the_copied_db TEMPLATE postgres')
     logger.info(msg="; Creating test DB finished OK")
 
